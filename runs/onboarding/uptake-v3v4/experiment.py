@@ -1,0 +1,162 @@
+"""Unscored v2 vs v3 vs v4 uptake replay: version is the arm; never executes actions."""
+import asyncio
+import ast
+import copy
+import hashlib
+import json
+import sys
+import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(ROOT / 'src'))
+sys.path.insert(0, str(ROOT / 'runs/onboarding/uptake-additional-models'))
+import importlib.util as _ilu
+
+from reasonproxy.config import Config
+from reasonproxy.engine import Engine, UpstreamError, sanitize_history
+from reasonproxy.prompts import wire_for
+from reasonproxy.upstream import Upstream, session_scope
+
+
+def _load_base():
+    spec = _ilu.spec_from_file_location(
+        "uptake_additional_base",
+        ROOT / 'runs/onboarding/uptake-additional-models/experiment.py',
+    )
+    mod = _ilu.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+base = _load_base()
+
+OUT = Path(__file__).resolve().parent
+VERSIONS = {
+    'v2': {'controller_prompt': 'concise', 'wire_name': '__reasonproxy_reason', 'tool_id': 'reason-tool-v2'},
+    'v3': {'controller_prompt': 'deliberate', 'wire_name': 'deliberate', 'tool_id': 'reason-tool-v3'},
+    'v4': {'controller_prompt': 'deliberate-focus', 'wire_name': 'deliberate', 'tool_id': 'reason-tool-v4'},
+}
+CONTROLLERS = {
+    'cf-super': 'ctrl-cf-super',
+    'zen-lightning': 'ctrl-zen-lightning',
+    'glm52': 'ctrl-exp-glm52',
+    'glm53flash': 'ctrl-exp-glm53flash',
+    'ling': 'ctrl-exp-ling',
+}
+ENSEMBLE = {'branches': ['br-cf-super', 'br-cf-super-hot', 'br-zen-lightning', 'br-zen-lightning-hot'],
+            'reducer': 'red-cf-super', 'min_branches': 4, 'max_reason_calls': 2,
+            'branch_timeout_s': 420, 'persistence': 'assistant_tags', 'reason_mode': 'live'}
+
+def digest(value):
+    return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+
+class RecordingEngine(Engine):
+    def __init__(self, cfg, upstream):
+        super().__init__(cfg, upstream)
+        self.controller_calls = []
+
+    async def _controller(self, vm, messages, tools, tool_choice, overrides, usage, tr):
+        offered = [t['function']['name'] for t in tools or []]
+        out = await super()._controller(vm, messages, tools, tool_choice, overrides, usage, tr)
+        self.controller_calls.append({'offered_tools': offered, 'tool_choice': tool_choice,
+                                      'emitted_tools': [t['function']['name'] for t in out.tool_calls],
+                                      'emitted_args': [(t.get('function') or {}).get('arguments', '')[:300] for t in out.tool_calls]})
+        return out
+
+def build_config():
+    cfg = Config.load(ROOT / 'configs/research.yaml')
+    cfg.trace_path = None
+    cfg.trace_texts = False
+    data = cfg.model_dump()
+    data['backends'].update(base.NEW_BACKENDS)
+    for slug, ctrl in CONTROLLERS.items():
+        for version, spec in VERSIONS.items():
+            data['virtual_models'][f'exp-{slug}-{version}'] = {
+                'controller': ctrl, 'controller_prompt': spec['controller_prompt'], **ENSEMBLE}
+    return Config.model_validate(data), cfg.sha
+
+async def main():
+    cfg, base_sha = build_config()
+    for slug in CONTROLLERS:
+        for version, spec in VERSIONS.items():
+            wire = wire_for(spec['controller_prompt'])
+            assert wire['wire_name'] == spec['wire_name'], (slug, version)
+            assert wire['tool_id'] == spec['tool_id'], (slug, version)
+    schema_path = Path.home() / '.local/share/uv/tools/mini-swe-agent/lib/python3.12/site-packages/minisweagent/models/utils/actions_toolcall.py'
+    bash_tool = next(ast.literal_eval(n.value) for n in ast.parse(schema_path.read_text()).body if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == 'BASH_TOOL' for t in n.targets))
+    data = json.loads((ROOT / base.SOURCE).read_text())
+    messages = [{k: v for k, v in m.items() if k != 'extra'} for m in data['messages']]
+    assert messages[0]['role'] == 'system' and messages[1]['role'] == 'user' and messages[-1]['role'] == 'tool'
+    kwargs = data['info']['config']['model']['model_kwargs']
+    params = {k: v for k, v in kwargs.items() if k in base.PARAMS}
+    states = {'early': {'messages': messages[:2], 'tools': [bash_tool], **params},
+              'late': {'messages': messages, 'tools': [bash_tool], **params}}
+    manifest = {'kind': 'unscored_version_comparison_replay', 'planned_requests': 90,
+                'versions': VERSIONS, 'controllers': CONTROLLERS, 'repeats_per_version_state_model': 3,
+                'source': base.SOURCE, 'source_sha256': hashlib.sha256((ROOT / base.SOURCE).read_bytes()).hexdigest(),
+                'base_config_sha': base_sha, 'script_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+                'created_utc': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+                'requests': {name: {'sha256': digest(req), 'messages': len(req['messages'])} for name, req in states.items()},
+                'limits': '900 seconds per replay; original provider retries and output budgets; no forced tool_choice; provider sampling defaults untouched',
+                'method': 'Five controller lanes concurrently; fixed Lightning caller states, three repetitions, rotated v2/v3/v4 order per state and repeat. Only the proxy prompt/tool surface varies. No proposed action is executed; no benchmark reward is measured.',
+                'stop_policy': 'Stop a lane on authentication/quota failure or replay timeout; preserve all observations. Do not adapt sample size to uptake.'}
+    (OUT / 'plan.json').write_text(json.dumps(manifest, indent=2) + '\n')
+    results_path = OUT / 'results.jsonl'
+    if results_path.exists():
+        raise RuntimeError('Refusing to overwrite or rerun an existing experiment')
+    upstream = Upstream(cfg)
+    order_cycle = ['v2', 'v3', 'v4']
+    async def lane(slug):
+        for state_index, (state, request) in enumerate(states.items()):
+            for repeat in range(3):
+                rot = (repeat + state_index) % 3
+                order = order_cycle[rot:] + order_cycle[:rot]
+                for version in order:
+                    model = f'exp-{slug}-{version}'
+                    engine = RecordingEngine(cfg, upstream)
+                    sid = f'uptake-v3v4-{slug}-{state}-{repeat}-{version}'
+                    row = {'session_id': sid, 'controller': slug, 'model': model, 'version': version,
+                           'state': state, 'repeat': repeat, 'input_sha256': digest(request),
+                           'started_utc': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}
+                    trace = {}
+                    started = time.monotonic()
+                    stop = False
+                    with session_scope(sid):
+                        try:
+                            response, trace = await asyncio.wait_for(engine.complete(copy.deepcopy(request), model, trace=trace), 900)
+                            message = response['choices'][0]['message']
+                            tools = message.get('tool_calls') or []
+                            row['outward_tools'] = [t['function']['name'] for t in tools]
+                            row['harness_action_valid'] = bool(tools) and all(t['function']['name'] == 'bash' and isinstance(json.loads(t['function']['arguments']).get('command'), str) for t in tools)
+                            _, _, replayed = sanitize_history([*request['messages'], message])
+                            row['persisted_checkpoint_replay_count'] = replayed
+                            row['status'] = 'ok'
+                        except UpstreamError as exc:
+                            row.update(status='provider_or_protocol_error', stage=exc.stage, error=exc.detail)
+                            stop = any(s in exc.detail.lower() for s in ['quota', 'freeusagelimit', 'http 401', 'http 403', 'http 429'])
+                        except asyncio.TimeoutError:
+                            row['status'] = 'timeout'
+                            stop = True
+                    row.update(wall_s=round(time.monotonic() - started, 3), controller_calls=engine.controller_calls,
+                               invocation_positive=int(trace.get('reason_calls', 0) > 0),
+                               trace_reason_calls=trace.get('reason_calls', 0), branches=len(trace.get('branches', [])),
+                               usable_branches=sum(bool(b.get('usable')) for b in trace.get('branches', [])),
+                               accepted_reductions=sum(bool(r.get('accepted')) for r in trace.get('reducer', [])),
+                               focus_chars=sum(c.get('focus_chars', 0) for c in trace.get('checkpoints', [])),
+                               prompt_tool_id=(trace.get('prompt_revisions') or {}).get('reason_tool', {}).get('id'),
+                               protocol_violations=trace.get('protocol_violations', []), degraded=trace.get('degraded'),
+                               usage=trace.get('usage_totals'), finished_utc=time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()))
+                    with results_path.open('a') as f:
+                        f.write(json.dumps(row) + '\n')
+                    print(json.dumps({k: row.get(k) for k in ['controller', 'state', 'repeat', 'version', 'status', 'invocation_positive', 'branches', 'accepted_reductions', 'focus_chars', 'harness_action_valid', 'wall_s']}), flush=True)
+                    if stop:
+                        print(json.dumps({'lane_stopped': slug, 'session_id': sid}), flush=True)
+                        return
+    try:
+        await asyncio.gather(*(lane(slug) for slug in CONTROLLERS))
+    finally:
+        await upstream.aclose()
+
+if __name__ == '__main__':
+    asyncio.run(main())

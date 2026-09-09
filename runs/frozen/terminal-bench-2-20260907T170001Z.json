@@ -1,0 +1,1781 @@
+{
+  "schema": "reasonproxy.frozen/1",
+  "frozen_utc": "2026-09-07T17:00:00.482489+00:00",
+  "suite": "terminal-bench-2",
+  "runner": "harbor",
+  "primary_metric": "official binary reward",
+  "adjudication": {
+    "graded": "the official verifier produced rewards -> use the reported values verbatim. A graded reward of 0 is a failure of the condition, whatever the proxy did internally: degraded deliberation, an unvalidated checkpoint or a skipped reason call never converts a graded 0 into an exclusion.",
+    "operational_failure_counted_as_reward_0": {
+      "AgentTimeoutError": "the agent exceeded the official agent timeout",
+      "NonZeroAgentExitCodeError": "mini-swe-agent exited nonzero, including RepeatedFormatError from a malformed or leaked private tool call",
+      "ApiError": "provider or proxy transport failure surfaced to the agent",
+      "ApiRateLimitError": "rate limiting, which a K-way fan-out can itself cause",
+      "ApiInternalServerError": "provider 5xx during the trial",
+      "ApiOverloadedError": "provider overload during the trial",
+      "ApiConnectionClosedError": "connection dropped mid-trial",
+      "ApiConnectionError": "connection failure to the proxy endpoint",
+      "ApiResponseStalledError": "response stalled past the adapter's patience",
+      "ApiProviderResourceNotFoundError": "provider resource missing at call time",
+      "UnknownApiError": "unrecognized API-layer failure",
+      "AgentAuthenticationError": "the sandbox could not authenticate to the proxy",
+      "ModelNotFoundError": "the proxy did not serve the requested alias",
+      "NetworkConnectionError": "agent-phase egress failure",
+      "ContextWindowExceededError": "context exhausted, which deliberation persistence can itself cause",
+      "OutputTokenExceededError": "output budget exhausted"
+    },
+    "operational_failure_rationale": "These are outcomes of the system under test - controller, proxy, fan-out, persistence, endpoint - not of the host. Excluding them would flatter whichever arm fails most often, so they carry zero credit in the primary metric and are additionally reported by category. An account-level quota block is deliberately not in this set: it is a property of the account's cumulative consumption, not of the trial's condition. See provider_quota_exhausted.",
+    "provider_quota_exhausted": {
+      "handling": "Blocked and unscored. Excluded from both metrics, reported per condition with counts and the matched evidence string, and counted as a coverage gap rather than as an outcome. The declared configuration did not run, so there is nothing to score; the cell is never zero-filled and never imputed.",
+      "decided_before_the_reward_is_read": "The class is assigned from execution evidence only, never from the value the verifier would have produced, so the rule cannot become outcome-conditioned. A reward that was nevertheless produced is recorded verbatim as observed_reward_not_scored and excluded from every metric.",
+      "harness_exceptions": {
+        "ApiUsageLimitError": "the harness named a usage/quota limit itself"
+      },
+      "provider_error_markers": [
+        "FreeUsageLimitError",
+        "free usage limit",
+        "insufficient_quota",
+        "quota exceeded",
+        "quota exhausted",
+        "credit balance is too low"
+      ],
+      "evidence_sources": "The harness exception type and message, plus the provider's own error object as ReasonProxy recorded it on the trace row: top-level detail, branches[].error and degradations[].reason, each of the form 'HTTP <status> <ErrorKind>: <message>'. litellm and the native harness map an account quota rejection and an ordinary burst limit onto the same HTTP 429, so the provider's error kind is the only discriminator; it is matched against the markers above and nothing else.",
+      "not_included": "ApiRateLimitError and every transient 429, provider 5xx, overload, stall, connection or protocol failure stay in the operational set: a K-way fan-out can itself provoke those, and they are outcomes of the condition. This class removes no treatment failure that the treatment caused.",
+      "re_execution": "A quota-blocked cell may be re-executed once the quota resets, as an explicitly named run of that condition and task. Re-execution is never automatic, never outcome-dependent, and never averaged: an analysis whose execution records carry the same trial key twice is refused until the authoritative records are named explicitly.",
+      "reporting": "Quota-blocked cells are listed with condition, task and evidence, and are reported as a provider account-availability limit. They are never presented as a cognitive or capability failure of the arm, and a metric may not be printed as if those cells had been attempted."
+    },
+    "infrastructure_excluded": [
+      "AgentSetupTimeoutError",
+      "EnvironmentStartTimeoutError",
+      "HealthcheckError",
+      "SandboxBuildFailedError",
+      "MemoryLimitExceededError",
+      "VerifierTimeoutError",
+      "RewardFileNotFoundError",
+      "RewardFileEmptyError",
+      "VerifierOutputParseError",
+      "AddTestsDirError",
+      "DownloadVerifierDirError"
+    ],
+    "infrastructure_rationale": "Host, container and verifier-side failures are not attributable to any condition; they are excluded from both metrics, counted, and listed per trial for adjudication.",
+    "unclassified": "any other exception: reported explicitly, excluded from both metrics, never zero-filled",
+    "missing_or_unexecuted": "reported as missing against requested/planned/executed counts. Missing is not a zero.",
+    "no_synthesis": "Missing trial scores are never imputed, averaged in, or replaced by another condition's value."
+  },
+  "adjudication_source": {
+    "borrowed_from": "experiments/deepswe/pilot.json",
+    "sha256": "ae1a0c5c8662b8ed2f244644fa59eba119acccfbd31e0253742ef352698a337d",
+    "reason": "this predeclaration declares no outcome_adjudication or contrasts of its own"
+  },
+  "contrasts": [
+    {
+      "id": "rp_vs_ctl",
+      "treatment_mode": "rp",
+      "reference_mode": "ctl",
+      "primary": true,
+      "reads": "effect of live deliberation over the same frozen controller run natively"
+    },
+    {
+      "id": "rp_vs_noop",
+      "treatment_mode": "rp",
+      "reference_mode": "noop",
+      "primary": false,
+      "reads": "effect of deliberation content, holding the injected prompt/tool surface constant"
+    },
+    {
+      "id": "noop_vs_ctl",
+      "treatment_mode": "noop",
+      "reference_mode": "ctl",
+      "primary": false,
+      "reads": "effect of the injected prompt/tool surface alone (schema perturbation control)"
+    }
+  ],
+  "predeclaration": {
+    "path": "runs/onboarding/terminal-bench-selection.json",
+    "sha256": "7dcc31691203eaeecd701527dc36b9fda2b4a95aa20121a0c9af7a318ea2a2ae",
+    "document": {
+      "benchmark": "Terminal-Bench 2.0 repository snapshot",
+      "repository": "https://github.com/laude-institute/terminal-bench-2",
+      "commit": "2fd12b88aafdd04a52c298e3940bcb189f9766d6",
+      "selected_before_model_outcomes": true,
+      "selection_rule": "Sort task IDs; filter declared memory_mb<=4096, cpus<=2, gpus==0; random.Random(0).shuffle; take first3",
+      "pool_size": 89,
+      "eligible_pool_size": 86,
+      "tasks": [
+        "sqlite-db-truncate",
+        "query-optimize",
+        "log-summary-date-ranges"
+      ],
+      "primary_metric": "official binary reward",
+      "native_agent_timeout_sec": 900,
+      "external_job_concurrency": 2,
+      "runtime_amendment": {
+        "date": "2026-09-07",
+        "reason": "User requested local workerd remote AI bindings, stronger transient-error retries, and parallel testing.",
+        "prior_observations": "The prior REST/four-attempt serial freeze has one completed Lightning baseline-treatment pair. Keep it separate; do not pool with this amended execution.",
+        "transport": "wrangler 4.129.0 local development with remote AI binding; OAuth renewal remains under observation.",
+        "retries": "Eight total attempts per provider call; transient failures only. Native task limits unchanged.",
+        "concurrency": "At most two independent 2-GiB Terminal-Bench jobs; no simultaneous DeepSWE sandbox. Shared provider rate gates can affect latency."
+      },
+      "cancellation_guard_amendment": {
+        "date": "2026-09-07",
+        "timing": "Post-outcome infrastructure correction; task selection and native limits unchanged.",
+        "reason": "Agent processes continued mutating task state during verification after native cancellation. Earlier executions retain raw rewards but cannot support clean capability comparisons.",
+        "implementation": "Repo-local scripts/native_harness.py bootstrap; installed packages remain unchanged. Effective guard policy and target hashes are recorded in the new freeze.",
+        "verification": "runs/onboarding/cancel-repro-jobs/cancel-repro-guarded-v2/result.json: both writer sessions stopped, owned processes reaped, unrelated service alive. runs/onboarding/guard-breach-smoke.json: injected cleanup failure also refuses a fresh verifier. No model calls in either fixture.",
+        "comparison_policy": "Do not pool pre-guard and guarded executions. Explicitly named guarded trials are a new runtime condition, not additional repeats of earlier cells."
+      },
+      "availability_amendment": "2026-09-07 before held-out model outcomes: MiMo429 FreeUsageLimitError; CF Super and Zen Lightning200. Separate explicitly named2model/oneNemotronFamily conditions added; original conditions unchanged. Original frozen manifests retained.",
+      "conditions": [
+        "ctl/zen-lightning-available",
+        "rp/zen-lightning-available",
+        "noop/zen-lightning-available",
+        "ctl/cf-super-available",
+        "rp/cf-super-available",
+        "noop/cf-super-available",
+        "ctl/cf-super",
+        "rp/cf-super",
+        "noop/cf-super",
+        "ctl/zen-lightning",
+        "rp/zen-lightning",
+        "noop/zen-lightning",
+        "ctl/zen-mimo",
+        "rp/zen-mimo",
+        "noop/zen-mimo"
+      ],
+      "trials_per_task_condition": 1,
+      "interpretation": "Exploratory paired replication, not a full benchmark score or frontier comparison"
+    }
+  },
+  "pins": {
+    "pyproject_sha256": "d2039b4eeddb2c97bae2ca75cda5c681a9e71543bb6f6366ec1a553163a9c730",
+    "pier": "0.3.1",
+    "harbor": "0.22.0",
+    "mini_swe_agent": "2.4.6",
+    "deepswe_commit": "0b9fabbb63b9104d678fe965e1632f2dd9eaa2ea",
+    "terminal-bench-2_commit": "2fd12b88aafdd04a52c298e3940bcb189f9766d6"
+  },
+  "tools": {
+    "harbor": {
+      "executable": "harbor",
+      "found": true,
+      "path": "/Users/mrwhite0racle/.local/bin/harbor",
+      "resolved_path": "/Users/mrwhite0racle/.local/share/uv/tools/harbor/bin/harbor",
+      "version": "0.22.0",
+      "version_source": "/Users/mrwhite0racle/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor-0.22.0.dist-info",
+      "venv_python": "/Users/mrwhite0racle/.local/share/uv/tools/harbor/bin/python3"
+    },
+    "mini_swe_agent_host": {
+      "executable": "mini-swe-agent",
+      "found": true,
+      "path": "/Users/mrwhite0racle/.local/bin/mini-swe-agent",
+      "resolved_path": "/Users/mrwhite0racle/.local/share/uv/tools/mini-swe-agent/bin/mini-swe-agent",
+      "version": "2.4.6",
+      "version_source": "/Users/mrwhite0racle/.local/share/uv/tools/mini-swe-agent/lib/python3.12/site-packages/mini_swe_agent-2.4.6.dist-info"
+    },
+    "mini_swe_agent_in_sandbox": {
+      "version": "2.4.6",
+      "pin_mechanism": "agent kwarg `version` -> uv tool install mini-swe-agent==<version> inside the sandbox"
+    },
+    "native_harness_bootstrap": {
+      "bootstrap": "scripts/native_harness.py",
+      "bootstrap_sha256": "2237b005137c46b2ff0482f11c8031c58ccb77622599126d64ce7663cd8dac1f",
+      "venv_python": "/Users/mrwhite0racle/.local/share/uv/tools/harbor/bin/python3",
+      "launch_template": [
+        "<venv_python>",
+        "scripts/native_harness.py",
+        "harbor",
+        "<native_cli_path>",
+        "run",
+        "-c",
+        "<job config>",
+        "-y"
+      ],
+      "install_ok": true,
+      "policy_version": "native-exec-cancellation-guard/2",
+      "policy_digest": "9c5ffe3304d8c97db60fcd7dc4b025d1e29919c5a741106f42c9366ef05b08b0",
+      "cancellation_policy": {
+        "container_dependencies": {
+          "optional": [
+            "readlink (adds the inherited-stdio-pipe signal)"
+          ],
+          "required": [
+            "bash",
+            "Linux /proc",
+            "kill",
+            "sleep"
+          ]
+        },
+        "digest": "9c5ffe3304d8c97db60fcd7dc4b025d1e29919c5a741106f42c9366ef05b08b0",
+        "fail_closed": [
+          "install-time verification of the patched method's presence, coroutine-ness and signature",
+          "per-environment containment probe (marker visible in /proc/self/environ, foreign environ readable, /proc enumerable) before the first main-container exec runs",
+          "unparseable exec argv, detached (-d) exec, or Windows container: the exec is refused, never run unguarded",
+          "unproven containment latches the harness process: every later main-container exec, including fresh verifier environments, is refused"
+        ],
+        "known_limits": [
+          "a descendant that simultaneously replaces its environment, calls setsid, re-parents to PID 1 and closes the exec's stdio shares no inherited signal with the exec and is not detected",
+          "SIGKILL of the harness process itself leaves no opportunity to contain anything",
+          "no claim is made about deliberate escapes from a co-operating or hostile in-container process beyond the four signals above"
+        ],
+        "ladder": {
+          "abort_late_rounds": 4,
+          "late_round_interval_sec": 0.25,
+          "post_client_late_rounds": 2,
+          "probe_timeout_sec": 60,
+          "sweep_timeout_sec": 20,
+          "term_grace_sec": 2
+        },
+        "never_signalled": [
+          "pid 1",
+          "the reaper shell itself",
+          "zombies (already terminated; unreapable from inside, and excluded from the survivor count for the same reason)",
+          "anything outside the union above"
+        ],
+        "ownership_signals": [
+          "NATIVE_EXEC_GUARD_ID=<per-exec uuid4> present in /proc/<pid>/environ (inherited across fork/exec, survives re-parenting)",
+          "descendant of a marked root via /proc/<pid>/stat ppid chain (<=64 hops)",
+          "member of a process group led by a marked root",
+          "holder of this exec's inherited stdio pipe, matched by /proc/<pid>/fd/{0,1,2} link target (skipped when the container has no readlink)"
+        ],
+        "patched": {
+          "also": "asyncio.create_subprocess_exec (observation only; passthrough when no guarded exec is active)",
+          "method": "DockerEnvironment._run_docker_compose_command",
+          "out_of_scope": "sidecar-service execs, non-exec compose commands (build/up/ps/cp/down), Windows containers (explicitly rejected)",
+          "scope": "compose `exec` argv whose service is the harness main service"
+        },
+        "preserved": [
+          "argv, shell wrapper, cwd, user, stdin, stdout streaming, exit code",
+          "the original exception object and its type on the abort path",
+          "normal completion (no sweep, no extra container work)",
+          "unrelated pre-existing container services and concurrently marked execs"
+        ],
+        "scripts": {
+          "probe_sha256": "738d6f809f80a6832ca04e0f0eb5e1304b39fcf0e775cd4826c1641c5e9a0d82",
+          "reaper_sha256": "df24e9d365ba5e3efba795d6009250c6da41bfd8a87c480b280073a704442e5d"
+        },
+        "summary": "On any abnormal exit (asyncio cancellation, harness exec timeout, host error) from a Linux main-container `docker compose exec`, the in-container command and its active descendants are SIGTERMed, then SIGKILLed and verified gone, before the exception propagates and the verifier phase starts; the host docker client and its host-side descendants are reaped afterwards, then containment is re-verified.",
+        "transport": "the compose argv prefix and environment observed from the guarded exec itself, reused verbatim for the reaper",
+        "version": "native-exec-cancellation-guard/2"
+      },
+      "target_digest": "851d3aeeca959bdcaffbc35e465f778ebdf05925e06d594b0eefc776fa9c13e3",
+      "patched_runtime": {
+        "class": {
+          "qualname": "harbor.environments.docker.docker.DockerEnvironment"
+        },
+        "main_service": "main",
+        "methods": {
+          "_collect_buffered_output": {
+            "present": true,
+            "signature": "(process: asyncio.subprocess.Process, *, timeout_sec: int | None, stdin_data: bytes | None = None) -> harbor.environments.base.ExecResult",
+            "source_sha256": "9deccdb55072b381406e67bd5164df6dbd047d1cd4272bb687670688f909ec59"
+          },
+          "_collect_streamed_output": {
+            "present": true,
+            "signature": "(process: asyncio.subprocess.Process, *, timeout_sec: int | None, stdin_data: bytes | None = None, on_output: collections.abc.Callable[[str, typing.Literal['stdout', 'stderr']], collections.abc.Awaitable[None]]) -> harbor.environments.base.ExecResult",
+            "source_sha256": "75eefd2bc921d0d1de1e779cd5ac0729426573b68eb62db547cc81759c561f1f"
+          },
+          "_compose_exec": {
+            "present": true,
+            "signature": "(self, command: str, *, service: str, cwd: str | None, env: dict[str, str] | None, timeout_sec: int | None, user: str | int | None) -> harbor.environments.base.ExecResult",
+            "source_sha256": "0c7a1fdb10b851c5bcd8412e2e242cf8eb8a694b128d448f5bb8d8e3679297b6"
+          },
+          "_run_docker_compose_command": {
+            "present": true,
+            "signature": "(self, command: list[str], check: bool = True, timeout_sec: int | None = None, stdin_data: bytes | None = None, on_output: collections.abc.Callable[[str, typing.Literal['stdout', 'stderr']], collections.abc.Awaitable[None]] | None = None) -> harbor.environments.base.ExecResult",
+            "source_sha256": "3842bcbe9a34192cd67e3b651d4c7ee12313c0daabac0f2d6f5897936168291c"
+          },
+          "_terminate_process": {
+            "present": true,
+            "signature": "(process: asyncio.subprocess.Process) -> None",
+            "source_sha256": "94c45cdbb210dcb46af4ec928cd8ff5f1ca6616a14388279968f0b8482dfcefb"
+          },
+          "exec": {
+            "present": true,
+            "signature": "(self, command: str, cwd: str | None = None, env: dict[str, str] | None = None, timeout_sec: int | None = None, user: str | int | None = None) -> harbor.environments.base.ExecResult",
+            "source_sha256": "2624d5b7ca23ba990ca64ad8e80edb03f7fe80f57816f729426c18cb383de9b5"
+          },
+          "service_exec": {
+            "present": true,
+            "signature": "(self, command: str, *, service: str | None = None, cwd: str | None = None, env: dict[str, str] | None = None, timeout_sec: int | None = None, user: str | int | None = None) -> harbor.environments.base.ExecResult",
+            "source_sha256": "58fb7ba9283864b4a51898bf5b97c6bb07fe3d4e72d2942d0b5107cf0b45ceb8"
+          }
+        },
+        "modules": {
+          "harbor.constants": {
+            "file": "/Users/mrwhite0racle/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/constants.py",
+            "sha256": "adc8213e55facf42a89db48949f62cb95a842c7a417045d477828cd0bff0bb1e"
+          },
+          "harbor.environments.base": {
+            "file": "/Users/mrwhite0racle/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/environments/base.py",
+            "sha256": "74ce73b043041ac8ec3214b73613a9827ca878d8a97b32f0d572a7f9173fef08"
+          },
+          "harbor.environments.docker.docker": {
+            "file": "/Users/mrwhite0racle/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/environments/docker/docker.py",
+            "sha256": "32f7c7b1b875cb9682a172b5cbe9d4c4e5e90c69fedeef5186baf363ed9d00e5"
+          },
+          "harbor.environments.docker.docker_unix": {
+            "file": "/Users/mrwhite0racle/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/environments/docker/docker_unix.py",
+            "sha256": "58b525e4e2fff1ab39997c82c971beba98f5a0dd80984778f493aec0191cb642"
+          }
+        },
+        "package": {
+          "dist": "harbor",
+          "name": "harbor",
+          "version": "0.22.0"
+        },
+        "python": {
+          "executable": "/Users/mrwhite0racle/.local/share/uv/tools/harbor/bin/python3",
+          "version": "3.12.4"
+        },
+        "target_digest": "851d3aeeca959bdcaffbc35e465f778ebdf05925e06d594b0eefc776fa9c13e3"
+      }
+    }
+  },
+  "dataset": {
+    "repository": "https://github.com/laude-institute/terminal-bench-2",
+    "expected_commit": "2fd12b88aafdd04a52c298e3940bcb189f9766d6",
+    "clone": {
+      "path": "/Users/mrwhite0racle/.cache/reasonproxy/terminal-bench-2",
+      "head": "2fd12b88aafdd04a52c298e3940bcb189f9766d6",
+      "dirty": false
+    },
+    "tasks_root": "/Users/mrwhite0racle/.cache/reasonproxy/terminal-bench-2",
+    "pool_size": 89
+  },
+  "tasks": [
+    {
+      "id": "sqlite-db-truncate",
+      "path": "/Users/mrwhite0racle/.cache/reasonproxy/terminal-bench-2/sqlite-db-truncate",
+      "declared_name": "terminal-bench/sqlite-db-truncate",
+      "language": null,
+      "category": "debugging",
+      "base_commit_hash": null,
+      "schema_version": "1.1",
+      "instruction_bytes": 285,
+      "official_limits": {
+        "agent_timeout_sec": 900.0,
+        "agent_network_mode": null,
+        "verifier_timeout_sec": 900.0,
+        "verifier_network_mode": null,
+        "verifier_environment_mode": null,
+        "environment_build_timeout_sec": 600.0,
+        "cpus": 1,
+        "memory_mb": 2048,
+        "storage_mb": 10240,
+        "gpus": 0,
+        "allow_internet": true,
+        "docker_image": "alexgshaw/sqlite-db-truncate:20251031"
+      },
+      "hashes": {
+        "task.toml": "56061acd75d9933aa554aeb249b85d7d081227fca1b71a3da7e3dc97a675723e",
+        "instruction.md": "465c135cd80be49023ea3ecf8f1d840c679b3a960efe425d510894e417b9d802"
+      }
+    },
+    {
+      "id": "query-optimize",
+      "path": "/Users/mrwhite0racle/.cache/reasonproxy/terminal-bench-2/query-optimize",
+      "declared_name": "terminal-bench/query-optimize",
+      "language": null,
+      "category": "data-science",
+      "base_commit_hash": null,
+      "schema_version": "1.1",
+      "instruction_bytes": 540,
+      "official_limits": {
+        "agent_timeout_sec": 900.0,
+        "agent_network_mode": null,
+        "verifier_timeout_sec": 1800.0,
+        "verifier_network_mode": null,
+        "verifier_environment_mode": null,
+        "environment_build_timeout_sec": 600.0,
+        "cpus": 1,
+        "memory_mb": 2048,
+        "storage_mb": 10240,
+        "gpus": 0,
+        "allow_internet": true,
+        "docker_image": "alexgshaw/query-optimize:20251031"
+      },
+      "hashes": {
+        "task.toml": "6e88f2a86df699594bcb1bf81df4ed694505f79c9420f671335b02524bbe3868",
+        "instruction.md": "d25a6de62832a1732c2d3aee10fb0308df1bef5f9aba5234f7a04ceb7442a91d"
+      }
+    },
+    {
+      "id": "log-summary-date-ranges",
+      "path": "/Users/mrwhite0racle/.cache/reasonproxy/terminal-bench-2/log-summary-date-ranges",
+      "declared_name": "terminal-bench/log-summary-date-ranges",
+      "language": null,
+      "category": "data-processing",
+      "base_commit_hash": null,
+      "schema_version": "1.1",
+      "instruction_bytes": 1391,
+      "official_limits": {
+        "agent_timeout_sec": 900.0,
+        "agent_network_mode": null,
+        "verifier_timeout_sec": 900.0,
+        "verifier_network_mode": null,
+        "verifier_environment_mode": null,
+        "environment_build_timeout_sec": 600.0,
+        "cpus": 1,
+        "memory_mb": 2048,
+        "storage_mb": 10240,
+        "gpus": 0,
+        "allow_internet": true,
+        "docker_image": "alexgshaw/log-summary-date-ranges:20251031"
+      },
+      "hashes": {
+        "task.toml": "9a9593673d6805ef3a301ea734e9c4dbaf80da1b37c0fe9d1f2ceea2a8c57e18",
+        "instruction.md": "c1d4516ad4ec2238209740eaf01291df9ab48b0028a3fc5df383c6f831453484"
+      }
+    }
+  ],
+  "reserved_tasks": [
+    {
+      "id": "cancel-async-tasks",
+      "path": "/Users/mrwhite0racle/.cache/reasonproxy/terminal-bench-2/cancel-async-tasks",
+      "declared_name": "terminal-bench/cancel-async-tasks",
+      "language": null,
+      "category": "software-engineering",
+      "base_commit_hash": null,
+      "schema_version": "1.1",
+      "instruction_bytes": 537,
+      "official_limits": {
+        "agent_timeout_sec": 900.0,
+        "agent_network_mode": null,
+        "verifier_timeout_sec": 900.0,
+        "verifier_network_mode": null,
+        "verifier_environment_mode": null,
+        "environment_build_timeout_sec": 600.0,
+        "cpus": 1,
+        "memory_mb": 2048,
+        "storage_mb": 10240,
+        "gpus": 0,
+        "allow_internet": true,
+        "docker_image": "alexgshaw/cancel-async-tasks:20251031"
+      },
+      "hashes": {
+        "task.toml": "14db0675e04408f2133b0067e8dbddf66a1d6e7baf6b8d38bef8ecccfc4e58a8",
+        "instruction.md": "23d22f7039b50682941652c716f96dac314b8585c32c133614cac77dc067f47e"
+      }
+    }
+  ],
+  "roster": {
+    "path": "configs/research.yaml",
+    "sha256": "8b8f7d56ac937254707c7bfbcc2f9f1b154e5ad9815eaf517f23b93dce294800",
+    "trace_path": "runs/research.jsonl",
+    "trace_texts": false,
+    "providers": {
+      "cf": {
+        "base_url_template": "http://127.0.0.1:8787/v1",
+        "api_key_env": "REASONPROXY_LOCAL_BINDING_KEY",
+        "timeout_s": 300,
+        "max_attempts": 8,
+        "headers": {}
+      },
+      "zen": {
+        "base_url_template": "https://opencode.ai/zen/v1",
+        "api_key_env": "OPENCODE_API_KEY",
+        "timeout_s": 300,
+        "max_attempts": 8,
+        "headers": {}
+      }
+    },
+    "aliases": {
+      "ctl/zen-lightning-available": {
+        "reason_mode": "off",
+        "controller_prompt": null,
+        "max_reason_calls": null,
+        "min_branches": null,
+        "branch_prompt": null,
+        "branch_roles": null,
+        "branch_timeout_s": null,
+        "reduce": null,
+        "persistence": null,
+        "controller": {
+          "backend": "ctrl-zen-lightning",
+          "provider": "zen",
+          "model": "nemotron-3.5-lightning-free",
+          "params": {
+            "temperature": 0.0
+          },
+          "max_concurrent": null,
+          "rpm": null
+        },
+        "branches": [],
+        "reducer": null
+      },
+      "rp/zen-lightning-available": {
+        "reason_mode": "live",
+        "controller_prompt": "concise",
+        "max_reason_calls": 2,
+        "min_branches": 4,
+        "branch_prompt": null,
+        "branch_roles": null,
+        "branch_timeout_s": 420,
+        "reduce": null,
+        "persistence": "assistant_tags",
+        "controller": {
+          "backend": "ctrl-zen-lightning",
+          "provider": "zen",
+          "model": "nemotron-3.5-lightning-free",
+          "params": {
+            "temperature": 0.0
+          },
+          "max_concurrent": null,
+          "rpm": null
+        },
+        "branches": [
+          {
+            "backend": "br-cf-super",
+            "provider": "cf",
+            "model": "@cf/nvidia/nemotron-3-120b-a12b",
+            "params": {
+              "temperature": 0.7
+            },
+            "max_concurrent": null,
+            "rpm": null
+          },
+          {
+            "backend": "br-cf-super-hot",
+            "provider": "cf",
+            "model": "@cf/nvidia/nemotron-3-120b-a12b",
+            "params": {
+              "temperature": 1.0
+            },
+            "max_concurrent": null,
+            "rpm": null
+          },
+          {
+            "backend": "br-zen-lightning",
+            "provider": "zen",
+            "model": "nemotron-3.5-lightning-free",
+            "params": {
+              "temperature": 0.7
+            },
+            "max_concurrent": null,
+            "rpm": null
+          },
+          {
+            "backend": "br-zen-lightning-hot",
+            "provider": "zen",
+            "model": "nemotron-3.5-lightning-free",
+            "params": {
+              "temperature": 1.0
+            },
+            "max_concurrent": null,
+            "rpm": null
+          }
+        ],
+        "reducer": {
+          "backend": "red-cf-super",
+          "provider": "cf",
+          "model": "@cf/nvidia/nemotron-3-120b-a12b",
+          "params": {
+            "temperature": 0.0
+          },
+          "max_concurrent": null,
+          "rpm": null
+        }
+      },
+      "noop/zen-lightning-available": {
+        "reason_mode": "noop",
+        "controller_prompt": "concise",
+        "max_reason_calls": 2,
+        "min_branches": null,
+        "branch_prompt": null,
+        "branch_roles": null,
+        "branch_timeout_s": null,
+        "reduce": null,
+        "persistence": null,
+        "controller": {
+          "backend": "ctrl-zen-lightning",
+          "provider": "zen",
+          "model": "nemotron-3.5-lightning-free",
+          "params": {
+            "temperature": 0.0
+          },
+          "max_concurrent": null,
+          "rpm": null
+        },
+        "branches": [],
+        "reducer": null
+      },
+      "ctl/cf-super-available": {
+        "reason_mode": "off",
+        "controller_prompt": null,
+        "max_reason_calls": null,
+        "min_branches": null,
+        "branch_prompt": null,
+        "branch_roles": null,
+        "branch_timeout_s": null,
+        "reduce": null,
+        "persistence": null,
+        "controller": {
+          "backend": "ctrl-cf-super",
+          "provider": "cf",
+          "model": "@cf/nvidia/nemotron-3-120b-a12b",
+          "params": {
+            "temperature": 0.0
+          },
+          "max_concurrent": null,
+          "rpm": null
+        },
+        "branches": [],
+        "reducer": null
+      },
+      "rp/cf-super-available": {
+        "reason_mode": "live",
+        "controller_prompt": "concise",
+        "max_reason_calls": 2,
+        "min_branches": 4,
+        "branch_prompt": null,
+        "branch_roles": null,
+        "branch_timeout_s": 420,
+        "reduce": null,
+        "persistence": "assistant_tags",
+        "controller": {
+          "backend": "ctrl-cf-super",
+          "provider": "cf",
+          "model": "@cf/nvidia/nemotron-3-120b-a12b",
+          "params": {
+            "temperature": 0.0
+          },
+          "max_concurrent": null,
+          "rpm": null
+        },
+        "branches": [
+          {
+            "backend": "br-cf-super",
+            "provider": "cf",
+            "model": "@cf/nvidia/nemotron-3-120b-a12b",
+            "params": {
+              "temperature": 0.7
+            },
+            "max_concurrent": null,
+            "rpm": null
+          },
+          {
+            "backend": "br-cf-super-hot",
+            "provider": "cf",
+            "model": "@cf/nvidia/nemotron-3-120b-a12b",
+            "params": {
+              "temperature": 1.0
+            },
+            "max_concurrent": null,
+            "rpm": null
+          },
+          {
+            "backend": "br-zen-lightning",
+            "provider": "zen",
+            "model": "nemotron-3.5-lightning-free",
+            "params": {
+              "temperature": 0.7
+            },
+            "max_concurrent": null,
+            "rpm": null
+          },
+          {
+            "backend": "br-zen-lightning-hot",
+            "provider": "zen",
+            "model": "nemotron-3.5-lightning-free",
+            "params": {
+              "temperature": 1.0
+            },
+            "max_concurrent": null,
+            "rpm": null
+          }
+        ],
+        "reducer": {
+          "backend": "red-cf-super",
+          "provider": "cf",
+          "model": "@cf/nvidia/nemotron-3-120b-a12b",
+          "params": {
+            "temperature": 0.0
+          },
+          "max_concurrent": null,
+          "rpm": null
+        }
+      },
+      "noop/cf-super-available": {
+        "reason_mode": "noop",
+        "controller_prompt": "concise",
+        "max_reason_calls": 2,
+        "min_branches": null,
+        "branch_prompt": null,
+        "branch_roles": null,
+        "branch_timeout_s": null,
+        "reduce": null,
+        "persistence": null,
+        "controller": {
+          "backend": "ctrl-cf-super",
+          "provider": "cf",
+          "model": "@cf/nvidia/nemotron-3-120b-a12b",
+          "params": {
+            "temperature": 0.0
+          },
+          "max_concurrent": null,
+          "rpm": null
+        },
+        "branches": [],
+        "reducer": null
+      },
+      "ctl/cf-super": {
+        "reason_mode": "off",
+        "controller_prompt": null,
+        "max_reason_calls": null,
+        "min_branches": null,
+        "branch_prompt": null,
+        "branch_roles": null,
+        "branch_timeout_s": null,
+        "reduce": null,
+        "persistence": null,
+        "controller": {
+          "backend": "ctrl-cf-super",
+          "provider": "cf",
+          "model": "@cf/nvidia/nemotron-3-120b-a12b",
+          "params": {
+            "temperature": 0.0
+          },
+          "max_concurrent": null,
+          "rpm": null
+        },
+        "branches": [],
+        "reducer": null
+      },
+      "rp/cf-super": {
+        "reason_mode": "live",
+        "controller_prompt": "concise",
+        "max_reason_calls": 2,
+        "min_branches": 4,
+        "branch_prompt": null,
+        "branch_roles": null,
+        "branch_timeout_s": 420,
+        "reduce": null,
+        "persistence": "assistant_tags",
+        "controller": {
+          "backend": "ctrl-cf-super",
+          "provider": "cf",
+          "model": "@cf/nvidia/nemotron-3-120b-a12b",
+          "params": {
+            "temperature": 0.0
+          },
+          "max_concurrent": null,
+          "rpm": null
+        },
+        "branches": [
+          {
+            "backend": "br-cf-super",
+            "provider": "cf",
+            "model": "@cf/nvidia/nemotron-3-120b-a12b",
+            "params": {
+              "temperature": 0.7
+            },
+            "max_concurrent": null,
+            "rpm": null
+          },
+          {
+            "backend": "br-zen-lightning",
+            "provider": "zen",
+            "model": "nemotron-3.5-lightning-free",
+            "params": {
+              "temperature": 0.7
+            },
+            "max_concurrent": null,
+            "rpm": null
+          },
+          {
+            "backend": "br-zen-mimo-a",
+            "provider": "zen",
+            "model": "mimo-v2.5-free",
+            "params": {
+              "temperature": 0.7
+            },
+            "max_concurrent": null,
+            "rpm": null
+          },
+          {
+            "backend": "br-zen-mimo-b",
+            "provider": "zen",
+            "model": "mimo-v2.5-free",
+            "params": {
+              "temperature": 1.0
+            },
+            "max_concurrent": null,
+            "rpm": null
+          }
+        ],
+        "reducer": {
+          "backend": "red-zen-mimo",
+          "provider": "zen",
+          "model": "mimo-v2.5-free",
+          "params": {
+            "temperature": 0.0
+          },
+          "max_concurrent": null,
+          "rpm": null
+        }
+      },
+      "noop/cf-super": {
+        "reason_mode": "noop",
+        "controller_prompt": "concise",
+        "max_reason_calls": 2,
+        "min_branches": null,
+        "branch_prompt": null,
+        "branch_roles": null,
+        "branch_timeout_s": null,
+        "reduce": null,
+        "persistence": null,
+        "controller": {
+          "backend": "ctrl-cf-super",
+          "provider": "cf",
+          "model": "@cf/nvidia/nemotron-3-120b-a12b",
+          "params": {
+            "temperature": 0.0
+          },
+          "max_concurrent": null,
+          "rpm": null
+        },
+        "branches": [],
+        "reducer": null
+      },
+      "ctl/zen-lightning": {
+        "reason_mode": "off",
+        "controller_prompt": null,
+        "max_reason_calls": null,
+        "min_branches": null,
+        "branch_prompt": null,
+        "branch_roles": null,
+        "branch_timeout_s": null,
+        "reduce": null,
+        "persistence": null,
+        "controller": {
+          "backend": "ctrl-zen-lightning",
+          "provider": "zen",
+          "model": "nemotron-3.5-lightning-free",
+          "params": {
+            "temperature": 0.0
+          },
+          "max_concurrent": null,
+          "rpm": null
+        },
+        "branches": [],
+        "reducer": null
+      },
+      "rp/zen-lightning": {
+        "reason_mode": "live",
+        "controller_prompt": "concise",
+        "max_reason_calls": 2,
+        "min_branches": 4,
+        "branch_prompt": null,
+        "branch_roles": null,
+        "branch_timeout_s": 420,
+        "reduce": null,
+        "persistence": "assistant_tags",
+        "controller": {
+          "backend": "ctrl-zen-lightning",
+          "provider": "zen",
+          "model": "nemotron-3.5-lightning-free",
+          "params": {
+            "temperature": 0.0
+          },
+          "max_concurrent": null,
+          "rpm": null
+        },
+        "branches": [
+          {
+            "backend": "br-cf-super",
+            "provider": "cf",
+            "model": "@cf/nvidia/nemotron-3-120b-a12b",
+            "params": {
+              "temperature": 0.7
+            },
+            "max_concurrent": null,
+            "rpm": null
+          },
+          {
+            "backend": "br-zen-lightning",
+            "provider": "zen",
+            "model": "nemotron-3.5-lightning-free",
+            "params": {
+              "temperature": 0.7
+            },
+            "max_concurrent": null,
+            "rpm": null
+          },
+          {
+            "backend": "br-zen-mimo-a",
+            "provider": "zen",
+            "model": "mimo-v2.5-free",
+            "params": {
+              "temperature": 0.7
+            },
+            "max_concurrent": null,
+            "rpm": null
+          },
+          {
+            "backend": "br-zen-mimo-b",
+            "provider": "zen",
+            "model": "mimo-v2.5-free",
+            "params": {
+              "temperature": 1.0
+            },
+            "max_concurrent": null,
+            "rpm": null
+          }
+        ],
+        "reducer": {
+          "backend": "red-zen-mimo",
+          "provider": "zen",
+          "model": "mimo-v2.5-free",
+          "params": {
+            "temperature": 0.0
+          },
+          "max_concurrent": null,
+          "rpm": null
+        }
+      },
+      "noop/zen-lightning": {
+        "reason_mode": "noop",
+        "controller_prompt": "concise",
+        "max_reason_calls": 2,
+        "min_branches": null,
+        "branch_prompt": null,
+        "branch_roles": null,
+        "branch_timeout_s": null,
+        "reduce": null,
+        "persistence": null,
+        "controller": {
+          "backend": "ctrl-zen-lightning",
+          "provider": "zen",
+          "model": "nemotron-3.5-lightning-free",
+          "params": {
+            "temperature": 0.0
+          },
+          "max_concurrent": null,
+          "rpm": null
+        },
+        "branches": [],
+        "reducer": null
+      },
+      "ctl/zen-mimo": {
+        "reason_mode": "off",
+        "controller_prompt": null,
+        "max_reason_calls": null,
+        "min_branches": null,
+        "branch_prompt": null,
+        "branch_roles": null,
+        "branch_timeout_s": null,
+        "reduce": null,
+        "persistence": null,
+        "controller": {
+          "backend": "ctrl-zen-mimo",
+          "provider": "zen",
+          "model": "mimo-v2.5-free",
+          "params": {
+            "temperature": 0.0
+          },
+          "max_concurrent": null,
+          "rpm": null
+        },
+        "branches": [],
+        "reducer": null
+      },
+      "rp/zen-mimo": {
+        "reason_mode": "live",
+        "controller_prompt": "concise",
+        "max_reason_calls": 2,
+        "min_branches": 4,
+        "branch_prompt": null,
+        "branch_roles": null,
+        "branch_timeout_s": 420,
+        "reduce": null,
+        "persistence": "assistant_tags",
+        "controller": {
+          "backend": "ctrl-zen-mimo",
+          "provider": "zen",
+          "model": "mimo-v2.5-free",
+          "params": {
+            "temperature": 0.0
+          },
+          "max_concurrent": null,
+          "rpm": null
+        },
+        "branches": [
+          {
+            "backend": "br-cf-super",
+            "provider": "cf",
+            "model": "@cf/nvidia/nemotron-3-120b-a12b",
+            "params": {
+              "temperature": 0.7
+            },
+            "max_concurrent": null,
+            "rpm": null
+          },
+          {
+            "backend": "br-zen-lightning",
+            "provider": "zen",
+            "model": "nemotron-3.5-lightning-free",
+            "params": {
+              "temperature": 0.7
+            },
+            "max_concurrent": null,
+            "rpm": null
+          },
+          {
+            "backend": "br-zen-mimo-a",
+            "provider": "zen",
+            "model": "mimo-v2.5-free",
+            "params": {
+              "temperature": 0.7
+            },
+            "max_concurrent": null,
+            "rpm": null
+          },
+          {
+            "backend": "br-zen-mimo-b",
+            "provider": "zen",
+            "model": "mimo-v2.5-free",
+            "params": {
+              "temperature": 1.0
+            },
+            "max_concurrent": null,
+            "rpm": null
+          }
+        ],
+        "reducer": {
+          "backend": "red-zen-mimo",
+          "provider": "zen",
+          "model": "mimo-v2.5-free",
+          "params": {
+            "temperature": 0.0
+          },
+          "max_concurrent": null,
+          "rpm": null
+        }
+      },
+      "noop/zen-mimo": {
+        "reason_mode": "noop",
+        "controller_prompt": "concise",
+        "max_reason_calls": 2,
+        "min_branches": null,
+        "branch_prompt": null,
+        "branch_roles": null,
+        "branch_timeout_s": null,
+        "reduce": null,
+        "persistence": null,
+        "controller": {
+          "backend": "ctrl-zen-mimo",
+          "provider": "zen",
+          "model": "mimo-v2.5-free",
+          "params": {
+            "temperature": 0.0
+          },
+          "max_concurrent": null,
+          "rpm": null
+        },
+        "branches": [],
+        "reducer": null
+      }
+    },
+    "credential_note": "Provider credentials live only in the host proxy process; only variable names are recorded here."
+  },
+  "sources": {
+    "files": {
+      "src/reasonproxy/__init__.py": "354bf45c3b76e8479df759df0c89c682dde1b3446025950f1da656da68065eb9",
+      "src/reasonproxy/app.py": "f243c227ba57f22baa590d0255e7b711341d31dfc8fd937208ef6e07d7f79f2a",
+      "src/reasonproxy/config.py": "a3442a33f5c4ad8f414ef49563d066e728bb9247329af359491258b3b37ffc6d",
+      "src/reasonproxy/engine.py": "ed0f9afe0b7e6e00c857948309790840418d297452f79dd5ef5981bc27fe8250",
+      "src/reasonproxy/prompts.py": "9547ca3c88c648fe3c8c872f781861e82da8e309a91bfca1ea8fd091bbbd8705",
+      "src/reasonproxy/upstream.py": "3390eabda76a0e79aebe3d7ba46ce0ce4b87b4c6711a55fe667109ad69a01520",
+      "workers/ai/index.js": "417afebd7436fbe7399817db19b799cdcb6fdc54d620f6ad111e4b5058c5c618",
+      "workers/ai/wrangler.jsonc": "d3534a1cdac05d2895a0bf6fc9792b9655f54f25b868a2425b140aa6103354b0",
+      "experiments/deepswe/pilot.json": "ae1a0c5c8662b8ed2f244644fa59eba119acccfbd31e0253742ef352698a337d",
+      "experiments/deepswe/mini-swe.yaml": "0082d4419f1b4c1e025a6bcfdbe23877f165dad6c86d844b1612d26099a267b7",
+      "scripts/benchmark.py": "c4df21528ce1b5a6ae346adc67cddf5b03b85b0065fdde8c7799d9de1f3c6929",
+      "scripts/live_smoke.py": "07d8331a4ea7b83e2aef3d73e3250e23f995522fa9724c0fe0ca12863973e9eb",
+      "scripts/native_harness.py": "2237b005137c46b2ff0482f11c8031c58ccb77622599126d64ce7663cd8dac1f"
+    },
+    "combined_sha256": "935408104b24e55853b59319e20749ca0316b9e5761951fda92693a17ab85de4",
+    "proxy_sha256": "1a3e3c25d74225d1e581c0cff1b308e23367c1a7587e6da055032162ab4e6cad",
+    "note": "No git commit exists for this working tree; these are content hashes."
+  },
+  "host": {
+    "platform": "macOS-26.5-arm64-arm-64bit",
+    "machine": "arm64",
+    "processor": "arm",
+    "python": "3.12.4",
+    "docker": {
+      "available": true,
+      "server_version": "28.5.1",
+      "architecture": "aarch64",
+      "os_type": "linux",
+      "ncpu": 8,
+      "mem_total_bytes": 8218316800
+    },
+    "emulation_note": "DeepSWE images are linux/amd64; on an arm64 host they execute under emulation, which consumes part of the official agent budget."
+  },
+  "harness_settings": {
+    "model_name_template": "hosted_vllm/<alias>",
+    "proxy_url_in_sandbox": "http://host.docker.internal:8100/v1",
+    "agent_phase_allowlist": [
+      "host.docker.internal"
+    ],
+    "agent_step_limit": 250,
+    "cost_limit": "disabled (agent.cost_limit=0, MSWEA_COST_TRACKING=ignore_errors)",
+    "added_wall_clock_cap": null,
+    "timeout_multiplier": 1.0,
+    "n_concurrent_trials": 1,
+    "retries": 0,
+    "official_task_limits": "unchanged",
+    "native_exec_cancellation_guard": {
+      "bootstrap": "scripts/native_harness.py",
+      "bootstrap_sha256": "2237b005137c46b2ff0482f11c8031c58ccb77622599126d64ce7663cd8dac1f",
+      "policy_version": "native-exec-cancellation-guard/2",
+      "policy_digest": "9c5ffe3304d8c97db60fcd7dc4b025d1e29919c5a741106f42c9366ef05b08b0",
+      "target_digest": "851d3aeeca959bdcaffbc35e465f778ebdf05925e06d594b0eefc776fa9c13e3",
+      "install_ok": true,
+      "error": null,
+      "summary": "On any abnormal exit (asyncio cancellation, harness exec timeout, host error) from a Linux main-container `docker compose exec`, the in-container command and its active descendants are SIGTERMed, then SIGKILLed and verified gone, before the exception propagates and the verifier phase starts; the host docker client and its host-side descendants are reaped afterwards, then containment is re-verified."
+    },
+    "declared": {
+      "agent_step_limit": 250,
+      "cost_limit": "disabled",
+      "timeout_multiplier": 1.0,
+      "n_concurrent_trials": 1,
+      "external_job_concurrency": 2,
+      "official_limits_unchanged": {
+        "agent_timeout_sec": 900
+      }
+    }
+  },
+  "conditions": [
+    "ctl/zen-lightning-available",
+    "rp/zen-lightning-available",
+    "noop/zen-lightning-available",
+    "ctl/cf-super-available",
+    "rp/cf-super-available",
+    "noop/cf-super-available",
+    "ctl/cf-super",
+    "rp/cf-super",
+    "noop/cf-super",
+    "ctl/zen-lightning",
+    "rp/zen-lightning",
+    "noop/zen-lightning",
+    "ctl/zen-mimo",
+    "rp/zen-mimo",
+    "noop/zen-mimo"
+  ],
+  "plan": [
+    {
+      "order": 1,
+      "trial_key": "terminal-bench-2/ctl/zen-lightning-available/sqlite-db-truncate/r1",
+      "condition": "ctl/zen-lightning-available",
+      "family": "zen-lightning-available",
+      "mode": "ctl",
+      "task": "sqlite-db-truncate",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 2,
+      "trial_key": "terminal-bench-2/rp/zen-lightning-available/sqlite-db-truncate/r1",
+      "condition": "rp/zen-lightning-available",
+      "family": "zen-lightning-available",
+      "mode": "rp",
+      "task": "sqlite-db-truncate",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 3,
+      "trial_key": "terminal-bench-2/noop/zen-lightning-available/sqlite-db-truncate/r1",
+      "condition": "noop/zen-lightning-available",
+      "family": "zen-lightning-available",
+      "mode": "noop",
+      "task": "sqlite-db-truncate",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 4,
+      "trial_key": "terminal-bench-2/ctl/zen-lightning-available/query-optimize/r1",
+      "condition": "ctl/zen-lightning-available",
+      "family": "zen-lightning-available",
+      "mode": "ctl",
+      "task": "query-optimize",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 5,
+      "trial_key": "terminal-bench-2/rp/zen-lightning-available/query-optimize/r1",
+      "condition": "rp/zen-lightning-available",
+      "family": "zen-lightning-available",
+      "mode": "rp",
+      "task": "query-optimize",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 6,
+      "trial_key": "terminal-bench-2/noop/zen-lightning-available/query-optimize/r1",
+      "condition": "noop/zen-lightning-available",
+      "family": "zen-lightning-available",
+      "mode": "noop",
+      "task": "query-optimize",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 7,
+      "trial_key": "terminal-bench-2/ctl/zen-lightning-available/log-summary-date-ranges/r1",
+      "condition": "ctl/zen-lightning-available",
+      "family": "zen-lightning-available",
+      "mode": "ctl",
+      "task": "log-summary-date-ranges",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 8,
+      "trial_key": "terminal-bench-2/rp/zen-lightning-available/log-summary-date-ranges/r1",
+      "condition": "rp/zen-lightning-available",
+      "family": "zen-lightning-available",
+      "mode": "rp",
+      "task": "log-summary-date-ranges",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 9,
+      "trial_key": "terminal-bench-2/noop/zen-lightning-available/log-summary-date-ranges/r1",
+      "condition": "noop/zen-lightning-available",
+      "family": "zen-lightning-available",
+      "mode": "noop",
+      "task": "log-summary-date-ranges",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 10,
+      "trial_key": "terminal-bench-2/ctl/cf-super-available/sqlite-db-truncate/r1",
+      "condition": "ctl/cf-super-available",
+      "family": "cf-super-available",
+      "mode": "ctl",
+      "task": "sqlite-db-truncate",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 11,
+      "trial_key": "terminal-bench-2/rp/cf-super-available/sqlite-db-truncate/r1",
+      "condition": "rp/cf-super-available",
+      "family": "cf-super-available",
+      "mode": "rp",
+      "task": "sqlite-db-truncate",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 12,
+      "trial_key": "terminal-bench-2/noop/cf-super-available/sqlite-db-truncate/r1",
+      "condition": "noop/cf-super-available",
+      "family": "cf-super-available",
+      "mode": "noop",
+      "task": "sqlite-db-truncate",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 13,
+      "trial_key": "terminal-bench-2/ctl/cf-super-available/query-optimize/r1",
+      "condition": "ctl/cf-super-available",
+      "family": "cf-super-available",
+      "mode": "ctl",
+      "task": "query-optimize",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 14,
+      "trial_key": "terminal-bench-2/rp/cf-super-available/query-optimize/r1",
+      "condition": "rp/cf-super-available",
+      "family": "cf-super-available",
+      "mode": "rp",
+      "task": "query-optimize",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 15,
+      "trial_key": "terminal-bench-2/noop/cf-super-available/query-optimize/r1",
+      "condition": "noop/cf-super-available",
+      "family": "cf-super-available",
+      "mode": "noop",
+      "task": "query-optimize",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 16,
+      "trial_key": "terminal-bench-2/ctl/cf-super-available/log-summary-date-ranges/r1",
+      "condition": "ctl/cf-super-available",
+      "family": "cf-super-available",
+      "mode": "ctl",
+      "task": "log-summary-date-ranges",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 17,
+      "trial_key": "terminal-bench-2/rp/cf-super-available/log-summary-date-ranges/r1",
+      "condition": "rp/cf-super-available",
+      "family": "cf-super-available",
+      "mode": "rp",
+      "task": "log-summary-date-ranges",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 18,
+      "trial_key": "terminal-bench-2/noop/cf-super-available/log-summary-date-ranges/r1",
+      "condition": "noop/cf-super-available",
+      "family": "cf-super-available",
+      "mode": "noop",
+      "task": "log-summary-date-ranges",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 19,
+      "trial_key": "terminal-bench-2/ctl/cf-super/sqlite-db-truncate/r1",
+      "condition": "ctl/cf-super",
+      "family": "cf-super",
+      "mode": "ctl",
+      "task": "sqlite-db-truncate",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 20,
+      "trial_key": "terminal-bench-2/rp/cf-super/sqlite-db-truncate/r1",
+      "condition": "rp/cf-super",
+      "family": "cf-super",
+      "mode": "rp",
+      "task": "sqlite-db-truncate",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 21,
+      "trial_key": "terminal-bench-2/noop/cf-super/sqlite-db-truncate/r1",
+      "condition": "noop/cf-super",
+      "family": "cf-super",
+      "mode": "noop",
+      "task": "sqlite-db-truncate",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 22,
+      "trial_key": "terminal-bench-2/ctl/cf-super/query-optimize/r1",
+      "condition": "ctl/cf-super",
+      "family": "cf-super",
+      "mode": "ctl",
+      "task": "query-optimize",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 23,
+      "trial_key": "terminal-bench-2/rp/cf-super/query-optimize/r1",
+      "condition": "rp/cf-super",
+      "family": "cf-super",
+      "mode": "rp",
+      "task": "query-optimize",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 24,
+      "trial_key": "terminal-bench-2/noop/cf-super/query-optimize/r1",
+      "condition": "noop/cf-super",
+      "family": "cf-super",
+      "mode": "noop",
+      "task": "query-optimize",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 25,
+      "trial_key": "terminal-bench-2/ctl/cf-super/log-summary-date-ranges/r1",
+      "condition": "ctl/cf-super",
+      "family": "cf-super",
+      "mode": "ctl",
+      "task": "log-summary-date-ranges",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 26,
+      "trial_key": "terminal-bench-2/rp/cf-super/log-summary-date-ranges/r1",
+      "condition": "rp/cf-super",
+      "family": "cf-super",
+      "mode": "rp",
+      "task": "log-summary-date-ranges",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 27,
+      "trial_key": "terminal-bench-2/noop/cf-super/log-summary-date-ranges/r1",
+      "condition": "noop/cf-super",
+      "family": "cf-super",
+      "mode": "noop",
+      "task": "log-summary-date-ranges",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 28,
+      "trial_key": "terminal-bench-2/ctl/zen-lightning/sqlite-db-truncate/r1",
+      "condition": "ctl/zen-lightning",
+      "family": "zen-lightning",
+      "mode": "ctl",
+      "task": "sqlite-db-truncate",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 29,
+      "trial_key": "terminal-bench-2/rp/zen-lightning/sqlite-db-truncate/r1",
+      "condition": "rp/zen-lightning",
+      "family": "zen-lightning",
+      "mode": "rp",
+      "task": "sqlite-db-truncate",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 30,
+      "trial_key": "terminal-bench-2/noop/zen-lightning/sqlite-db-truncate/r1",
+      "condition": "noop/zen-lightning",
+      "family": "zen-lightning",
+      "mode": "noop",
+      "task": "sqlite-db-truncate",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 31,
+      "trial_key": "terminal-bench-2/ctl/zen-lightning/query-optimize/r1",
+      "condition": "ctl/zen-lightning",
+      "family": "zen-lightning",
+      "mode": "ctl",
+      "task": "query-optimize",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 32,
+      "trial_key": "terminal-bench-2/rp/zen-lightning/query-optimize/r1",
+      "condition": "rp/zen-lightning",
+      "family": "zen-lightning",
+      "mode": "rp",
+      "task": "query-optimize",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 33,
+      "trial_key": "terminal-bench-2/noop/zen-lightning/query-optimize/r1",
+      "condition": "noop/zen-lightning",
+      "family": "zen-lightning",
+      "mode": "noop",
+      "task": "query-optimize",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 34,
+      "trial_key": "terminal-bench-2/ctl/zen-lightning/log-summary-date-ranges/r1",
+      "condition": "ctl/zen-lightning",
+      "family": "zen-lightning",
+      "mode": "ctl",
+      "task": "log-summary-date-ranges",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 35,
+      "trial_key": "terminal-bench-2/rp/zen-lightning/log-summary-date-ranges/r1",
+      "condition": "rp/zen-lightning",
+      "family": "zen-lightning",
+      "mode": "rp",
+      "task": "log-summary-date-ranges",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 36,
+      "trial_key": "terminal-bench-2/noop/zen-lightning/log-summary-date-ranges/r1",
+      "condition": "noop/zen-lightning",
+      "family": "zen-lightning",
+      "mode": "noop",
+      "task": "log-summary-date-ranges",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 37,
+      "trial_key": "terminal-bench-2/ctl/zen-mimo/sqlite-db-truncate/r1",
+      "condition": "ctl/zen-mimo",
+      "family": "zen-mimo",
+      "mode": "ctl",
+      "task": "sqlite-db-truncate",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 38,
+      "trial_key": "terminal-bench-2/rp/zen-mimo/sqlite-db-truncate/r1",
+      "condition": "rp/zen-mimo",
+      "family": "zen-mimo",
+      "mode": "rp",
+      "task": "sqlite-db-truncate",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 39,
+      "trial_key": "terminal-bench-2/noop/zen-mimo/sqlite-db-truncate/r1",
+      "condition": "noop/zen-mimo",
+      "family": "zen-mimo",
+      "mode": "noop",
+      "task": "sqlite-db-truncate",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 40,
+      "trial_key": "terminal-bench-2/ctl/zen-mimo/query-optimize/r1",
+      "condition": "ctl/zen-mimo",
+      "family": "zen-mimo",
+      "mode": "ctl",
+      "task": "query-optimize",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 41,
+      "trial_key": "terminal-bench-2/rp/zen-mimo/query-optimize/r1",
+      "condition": "rp/zen-mimo",
+      "family": "zen-mimo",
+      "mode": "rp",
+      "task": "query-optimize",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 42,
+      "trial_key": "terminal-bench-2/noop/zen-mimo/query-optimize/r1",
+      "condition": "noop/zen-mimo",
+      "family": "zen-mimo",
+      "mode": "noop",
+      "task": "query-optimize",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 43,
+      "trial_key": "terminal-bench-2/ctl/zen-mimo/log-summary-date-ranges/r1",
+      "condition": "ctl/zen-mimo",
+      "family": "zen-mimo",
+      "mode": "ctl",
+      "task": "log-summary-date-ranges",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 44,
+      "trial_key": "terminal-bench-2/rp/zen-mimo/log-summary-date-ranges/r1",
+      "condition": "rp/zen-mimo",
+      "family": "zen-mimo",
+      "mode": "rp",
+      "task": "log-summary-date-ranges",
+      "repeat": 1,
+      "tag": "pilot"
+    },
+    {
+      "order": 45,
+      "trial_key": "terminal-bench-2/noop/zen-mimo/log-summary-date-ranges/r1",
+      "condition": "noop/zen-mimo",
+      "family": "zen-mimo",
+      "mode": "noop",
+      "task": "log-summary-date-ranges",
+      "repeat": 1,
+      "tag": "pilot"
+    }
+  ],
+  "conformance_plan": [
+    {
+      "order": 1,
+      "trial_key": "terminal-bench-2/ctl/zen-lightning-available/cancel-async-tasks/r1",
+      "condition": "ctl/zen-lightning-available",
+      "family": "zen-lightning-available",
+      "mode": "ctl",
+      "task": "cancel-async-tasks",
+      "repeat": 1,
+      "tag": "conformance"
+    },
+    {
+      "order": 2,
+      "trial_key": "terminal-bench-2/rp/zen-lightning-available/cancel-async-tasks/r1",
+      "condition": "rp/zen-lightning-available",
+      "family": "zen-lightning-available",
+      "mode": "rp",
+      "task": "cancel-async-tasks",
+      "repeat": 1,
+      "tag": "conformance"
+    },
+    {
+      "order": 3,
+      "trial_key": "terminal-bench-2/noop/zen-lightning-available/cancel-async-tasks/r1",
+      "condition": "noop/zen-lightning-available",
+      "family": "zen-lightning-available",
+      "mode": "noop",
+      "task": "cancel-async-tasks",
+      "repeat": 1,
+      "tag": "conformance"
+    },
+    {
+      "order": 4,
+      "trial_key": "terminal-bench-2/ctl/cf-super-available/cancel-async-tasks/r1",
+      "condition": "ctl/cf-super-available",
+      "family": "cf-super-available",
+      "mode": "ctl",
+      "task": "cancel-async-tasks",
+      "repeat": 1,
+      "tag": "conformance"
+    },
+    {
+      "order": 5,
+      "trial_key": "terminal-bench-2/rp/cf-super-available/cancel-async-tasks/r1",
+      "condition": "rp/cf-super-available",
+      "family": "cf-super-available",
+      "mode": "rp",
+      "task": "cancel-async-tasks",
+      "repeat": 1,
+      "tag": "conformance"
+    },
+    {
+      "order": 6,
+      "trial_key": "terminal-bench-2/noop/cf-super-available/cancel-async-tasks/r1",
+      "condition": "noop/cf-super-available",
+      "family": "cf-super-available",
+      "mode": "noop",
+      "task": "cancel-async-tasks",
+      "repeat": 1,
+      "tag": "conformance"
+    },
+    {
+      "order": 7,
+      "trial_key": "terminal-bench-2/ctl/cf-super/cancel-async-tasks/r1",
+      "condition": "ctl/cf-super",
+      "family": "cf-super",
+      "mode": "ctl",
+      "task": "cancel-async-tasks",
+      "repeat": 1,
+      "tag": "conformance"
+    },
+    {
+      "order": 8,
+      "trial_key": "terminal-bench-2/rp/cf-super/cancel-async-tasks/r1",
+      "condition": "rp/cf-super",
+      "family": "cf-super",
+      "mode": "rp",
+      "task": "cancel-async-tasks",
+      "repeat": 1,
+      "tag": "conformance"
+    },
+    {
+      "order": 9,
+      "trial_key": "terminal-bench-2/noop/cf-super/cancel-async-tasks/r1",
+      "condition": "noop/cf-super",
+      "family": "cf-super",
+      "mode": "noop",
+      "task": "cancel-async-tasks",
+      "repeat": 1,
+      "tag": "conformance"
+    },
+    {
+      "order": 10,
+      "trial_key": "terminal-bench-2/ctl/zen-lightning/cancel-async-tasks/r1",
+      "condition": "ctl/zen-lightning",
+      "family": "zen-lightning",
+      "mode": "ctl",
+      "task": "cancel-async-tasks",
+      "repeat": 1,
+      "tag": "conformance"
+    },
+    {
+      "order": 11,
+      "trial_key": "terminal-bench-2/rp/zen-lightning/cancel-async-tasks/r1",
+      "condition": "rp/zen-lightning",
+      "family": "zen-lightning",
+      "mode": "rp",
+      "task": "cancel-async-tasks",
+      "repeat": 1,
+      "tag": "conformance"
+    },
+    {
+      "order": 12,
+      "trial_key": "terminal-bench-2/noop/zen-lightning/cancel-async-tasks/r1",
+      "condition": "noop/zen-lightning",
+      "family": "zen-lightning",
+      "mode": "noop",
+      "task": "cancel-async-tasks",
+      "repeat": 1,
+      "tag": "conformance"
+    },
+    {
+      "order": 13,
+      "trial_key": "terminal-bench-2/ctl/zen-mimo/cancel-async-tasks/r1",
+      "condition": "ctl/zen-mimo",
+      "family": "zen-mimo",
+      "mode": "ctl",
+      "task": "cancel-async-tasks",
+      "repeat": 1,
+      "tag": "conformance"
+    },
+    {
+      "order": 14,
+      "trial_key": "terminal-bench-2/rp/zen-mimo/cancel-async-tasks/r1",
+      "condition": "rp/zen-mimo",
+      "family": "zen-mimo",
+      "mode": "rp",
+      "task": "cancel-async-tasks",
+      "repeat": 1,
+      "tag": "conformance"
+    },
+    {
+      "order": 15,
+      "trial_key": "terminal-bench-2/noop/zen-mimo/cancel-async-tasks/r1",
+      "condition": "noop/zen-mimo",
+      "family": "zen-mimo",
+      "mode": "noop",
+      "task": "cancel-async-tasks",
+      "repeat": 1,
+      "tag": "conformance"
+    }
+  ],
+  "counts": {
+    "tasks": 3,
+    "conditions": 15,
+    "repeats": 1,
+    "planned_trials": 45,
+    "planned_conformance_trials": 15
+  },
+  "job_root_default": "runs/tb2-replication",
+  "problems": []
+}

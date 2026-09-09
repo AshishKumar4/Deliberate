@@ -1,0 +1,637 @@
+This is mini-swe-agent version 2.4.6.
+Check the v2 migration guide at https://klieret.short.gy/mini-v2-migration
+Loading global config from '/root/.config/mini-swe-agent/.env'
+Warning: Input is not a terminal (fd=0).
+Building agent config from specs: ['mini', '/tmp/mswea-config/custom.yaml', 
+'model.model_kwargs.extra_headers.X-Session-ID=sqlite-db-truncate__Eq2igmb__agen
+t']
+
+System:
+You are a helpful assistant that can interact with a computer.
+
+User:
+Please solve this issue: I have a sqlite database in /app/trunc.db that was 
+corrupted through binary truncation. Recover as many of the rows as possible, 
+and create a JSON file in /app/recover.json. The output should have the format 
+[{"word": "testwordXY", "value": M}, {"word": "testwordZZ","value": N}, ...]
+
+
+You can execute bash commands and edit files to implement the necessary changes.
+
+## Recommended Workflow
+
+This workflow should be done step-by-step so that you can iterate on your 
+changes and any possible problems.
+
+1. Analyze the codebase by finding and reading relevant files
+2. Create a script to reproduce the issue
+3. Edit the source code to resolve the issue
+4. Verify your fix works by running your script again
+5. Test edge cases to ensure your fix is robust
+6. Submit your changes and finish your work by issuing the following command: 
+`echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT`.
+   Do not combine it with any other command. <important>After this command, you 
+cannot continue working on this task.</important>
+
+## Command Execution Rules
+
+You are operating in an environment where
+
+1. You issue at least one command
+2. The system executes the command(s) in a subshell
+3. You see the result(s)
+4. You write your next command(s)
+
+Each response should include:
+
+1. **Reasoning text** where you explain your analysis and plan
+2. At least one tool call with your command
+
+**CRITICAL REQUIREMENTS:**
+
+- Your response SHOULD include reasoning text explaining what you're doing
+- Your response MUST include AT LEAST ONE bash tool call
+- Directory or environment variable changes are not persistent. Every action is 
+executed in a new subshell.
+- However, you can prefix any action with `MY_ENV_VAR=MY_VALUE cd 
+/path/to/working/dir && ...` or write/load environment variables from files
+- Submit your changes and finish your work by issuing the following command: 
+`echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT`.
+  Do not combine it with any other command. <important>After this command, you 
+cannot continue working on this task.</important>
+
+Example of a CORRECT response:
+<example_response>
+I need to understand the structure of the repository first. Let me check what 
+files are in the current directory to get a better understanding of the 
+codebase.
+
+[Makes bash tool call with {"command": "ls -la"} as arguments]
+</example_response>
+
+<system_information>
+Linux 6.10.14-linuxkit #1 SMP Tue Oct 14 07:32:13 UTC 2025 x86_64
+</system_information>
+
+## Useful command examples
+
+### Create a new file:
+
+```bash
+cat <<'EOF' > newfile.py
+import numpy as np
+hello = "world"
+print(hello)
+EOF
+```
+
+### Edit files with sed:```bash
+# Replace all occurrences
+sed -i 's/old_string/new_string/g' filename.py
+
+# Replace only first occurrence
+sed -i 's/old_string/new_string/' filename.py
+
+# Replace first occurrence on line 1
+sed -i '1s/old_string/new_string/' filename.py
+
+# Replace all occurrences in lines 1-10
+sed -i '1,10s/old_string/new_string/g' filename.py
+```
+
+### View file content:
+
+```bash
+# View specific lines with numbers
+nl -ba filename.py | sed -n '10,20p'
+```
+
+### Any other command you want to run
+
+```bash
+anything
+```
+────────────────────────────────────────────────────────────────────────────────
+
+mini-swe-agent (step 1, $0.00):
+```
+ls -la /app/trunc.db
+```
+
+Tool:
+<returncode>
+0
+<output>
+-rw-r--r-- 1 root root 4096 Aug 11  2025 /app/trunc.db
+
+────────────────────────────────────────────────────────────────────────────────
+
+mini-swe-agent (step 2, $0.00):
+```
+sqlite3 /app/trunc.db ".tables"
+```
+
+Tool:
+<returncode>
+127
+<output>
+/bin/sh: 1: sqlite3: not found
+
+────────────────────────────────────────────────────────────────────────────────
+
+mini-swe-agent (step 3, $0.00):
+```
+which python3 python sqlite3 2>/dev/null; python3 -c "import sqlite3; conn = 
+sqlite3.connect('/app/trunc.db'); print(conn.execute('SELECT name FROM 
+sqlite_master WHERE type=\"table\"').fetchall())"
+```
+
+Tool:
+<returncode>
+1
+<output>
+/usr/local/bin/python3
+/usr/local/bin/python
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    import sqlite3; conn = sqlite3.connect('/app/trunc.db'); 
+print(conn.execute('SELECT name FROM sqlite_master WHERE 
+type="table"').fetchall())
+                                                                   ~~~~~~~~~~~~^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.DatabaseError: file is not a database
+
+────────────────────────────────────────────────────────────────────────────────
+
+mini-swe-agent (step 4, $0.00):
+```
+xxd /app/trunc.db | head -50
+```
+
+Tool:
+<returncode>
+0
+<output>
+/bin/sh: 1: xxd: not found
+
+────────────────────────────────────────────────────────────────────────────────
+
+mini-swe-agent (step 5, $0.00):
+```
+od -A x -t x1z -v /app/trunc.db | head -50
+```
+
+Tool:
+<returncode>
+0
+<output>
+000000 0d 00 00 00 0a 0f 49 00 0f f0 0f df 0f ce 0f bd  >......I.........<
+000010 0f ac 0f 9b 0f 8a 0f 79 0f 61 0f 49 00 00 00 00  >.......y.a.I....<
+000020 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+000030 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+000040 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+000050 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+000060 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+000070 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+000080 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+000090 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+0000a0 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+0000b0 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+0000c0 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+0000d0 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+0000e0 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+0000f0 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+000100 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+000110 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+000120 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+000130 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+000140 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+000150 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+000160 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+000170 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+000180 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+000190 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+0001a0 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+0001b0 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+0001c0 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+0001d0 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+0001e0 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+0001f0 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+000200 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+000210 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+000220 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+000230 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+000240 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+000250 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+000260 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+000270 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+000280 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+000290 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+0002a0 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+0002b0 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+0002c0 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+0002d0 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+0002e0 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+0002f0 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+000300 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+000310 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  >................<
+
+────────────────────────────────────────────────────────────────────────────────
+
+mini-swe-agent (step 6, $0.00):
+```
+python3 -c "
+data = open('/app/trunc.db', 'rb').read()
+print(f'File size: {len(data)} bytes')
+print(f'First 100 bytes hex: {data[:100].hex()}')
+print(f'First 100 bytes repr: {repr(data[:100])}')
+"
+```
+
+Tool:
+<returncode>
+0
+<output>
+File size: 4096 bytes
+First 100 bytes hex: 
+0d0000000a0f49000ff00fdf0fce0fbd0fac0f9b0f8a0f790f610f49000000000000000000000000
+00000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000
+First 100 bytes repr: 
+b'\r\x00\x00\x00\n\x0fI\x00\x0f\xf0\x0f\xdf\x0f\xce\x0f\xbd\x0f\xac\x0f\x9b\x0f\
+x8a\x0fy\x0fa\x0fI\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x
+00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x
+00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x
+00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+
+────────────────────────────────────────────────────────────────────────────────
+
+mini-swe-agent (step 7, $0.00):
+```
+python3 -c "
+data = open('/app/trunc.db', 'rb').read()
+print(f'File size: {len(data)} bytes')
+
+# Check for SQLite header pattern
+header = b'SQLite format 3'
+idx = data.find(header)
+print(f'SQLite header found at offset: {idx}')
+
+# Also check what the first 16 bytes look like as potential header
+print(f'First 16 bytes: {data[:16].hex()}')
+
+# Look for any readable strings in the file
+import re
+strings = re.findall(b'[\\x20-\\x7e]{4,}', data)
+for s in strings[:20]:
+    print(f'String: {s.decode(\"ascii\", errors=\"replace\")}')
+"
+```
+
+Tool:
+<returncode>
+0
+<output>
+File size: 4096 bytes
+SQLite header found at offset: -1
+First 16 bytes: 0d0000000a0f49000ff00fdf0fce0fbd
+String: testword09?
+String: testword08@X
+String: testword07c
+String: testword06K
+String: testword052
+String: testword04*
+String: testword03
+String: testword02
+String: testword01
+String: testword00
+
+────────────────────────────────────────────────────────────────────────────────
+
+mini-swe-agent (step 8, $0.00):
+```
+python3 -c "
+data = open('/app/trunc.db', 'rb').read()
+import re
+strings = re.findall(b'[\\x20-\\x7e]{4,}', data)
+for s in strings:
+    print(f'String: {s.decode(\"ascii\", errors=\"replace\")}')
+print(f'---')
+# Also look for the pattern testword followed by digits
+strings2 = re.findall(b'testword\\d+', data)
+for s in strings2:
+    print(f'testword string: {s.decode(\"ascii\")}')
+"
+```
+
+Tool:
+<returncode>
+0
+<output>
+<string>:9: SyntaxWarning: invalid escape sequence '\d'
+String: testword09?
+String: testword08@X
+String: testword07c
+String: testword06K
+String: testword052
+String: testword04*
+String: testword03
+String: testword02
+String: testword01
+String: testword00
+---
+testword string: testword09
+testword string: testword08
+testword string: testword07
+testword string: testword06
+testword string: testword052
+testword string: testword04
+testword string: testword03
+testword string: testword02
+testword string: testword01
+testword string: testword00
+
+────────────────────────────────────────────────────────────────────────────────
+
+mini-swe-agent (step 9, $0.00):
+```
+python3 -c "
+data = open('/app/trunc.db', 'rb').read()
+import re
+
+# Look at all printable regions
+# Find runs of printable ASCII
+i = 0
+while i < len(data):
+    if 0x20 <= data[i] <= 0x7e:
+        start = i
+        while i < len(data) and 0x20 <= data[i] <= 0x7e:
+            i += 1
+        print(f'Printable block at offset {start}-{i-1}: 
+{data[start:i].decode(\"ascii\", errors=\"replace\")}')
+    else:
+        i += 1
+"
+```
+
+Tool:
+<returncode>
+0
+<output>
+Printable block at offset 6-6: I
+Printable block at offset 23-23: y
+Printable block at offset 25-25: a
+Printable block at offset 27-27: I
+Printable block at offset 3917-3917: !
+Printable block at offset 3919-3929: testword09?
+Printable block at offset 3941-3941: !
+Printable block at offset 3943-3954: testword08@X
+Printable block at offset 3956-3957: \(
+Printable block at offset 3965-3965: !
+Printable block at offset 3967-3977: testword07c
+Printable block at offset 3982-3982: !
+Printable block at offset 3984-3994: testword06K
+Printable block at offset 3999-3999: !
+Printable block at offset 4001-4011: testword052
+Printable block at offset 4016-4016: !
+Printable block at offset 4018-4028: testword04*
+Printable block at offset 4033-4033: !
+Printable block at offset 4035-4044: testword03
+Printable block at offset 4050-4050: !
+Printable block at offset 4052-4061: testword02
+Printable block at offset 4067-4067: !
+Printable block at offset 4069-4078: testword01
+Printable block at offset 4084-4084: !
+Printable block at offset 4086-4095: testword00
+
+────────────────────────────────────────────────────────────────────────────────
+
+mini-swe-agent (step 10, $0.00):
+```
+python3 -c "
+data = open('/app/trunc.db', 'rb').read()
+print(f'File size: {len(data)} bytes')
+
+# Look at the last 256 bytes
+print('Last 256 bytes hex:')
+print(data[-256:].hex())
+print()
+print('Last 256 bytes repr:')
+print(repr(data[-256:]))
+"
+```
+
+Tool:
+<returncode>
+0
+<output>
+File size: 4096 bytes
+Last 256 bytes hex:
+00000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000160a0400210774
+657374776f726430393fe000000000000016090400210774657374776f726430384058ff5c28f5c2
+8f0f080400210174657374776f72643037630f070400210174657374776f726430364b0f06040021
+0174657374776f72643035320f050400210174657374776f726430342a0f04040021017465737477
+6f72643033190f030400210174657374776f726430320a0f020400210174657374776f7264303102
+0e010400210974657374776f72643030
+
+Last 256 bytes repr:
+b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x
+00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x
+00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x
+00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x16\n\x04\x00!\x07testwor
+d09?\xe0\x00\x00\x00\x00\x00\x00\x16\t\x04\x00!\x07testword08@X\xff\\(\xf5\xc2\x
+8f\x0f\x08\x04\x00!\x01testword07c\x0f\x07\x04\x00!\x01testword06K\x0f\x06\x04\x
+00!\x01testword052\x0f\x05\x04\x00!\x01testword04*\x0f\x04\x04\x00!\x01testword0
+3\x19\x0f\x03\x04\x00!\x01testword02\n\x0f\x02\x04\x00!\x01testword01\x02\x0e\x0
+1\x04\x00!\ttestword00'
+
+────────────────────────────────────────────────────────────────────────────────
+
+mini-swe-agent (step 11, $0.00):
+```
+python3 -c "
+data = open('/app/trunc.db', 'rb').read()
+print(f'File size: {len(data)} bytes')
+
+# The SQLite header should start with 'SQLite format 3\\x00'
+# But the first bytes are 0d 00 00 00 which is different
+# Let's check if there's a valid header somewhere
+
+# Look for the pattern 'SQLite format 3' anywhere
+import re
+for i in range(len(data) - 16):
+    if data[i:i+16] == b'SQLite format 3\x00':
+        print(f'Found SQLite header at offset {i}')
+
+# Check the page size byte - offset 16-17 in a valid header
+# And the write format, etc.
+
+# Let's look at the last page. In SQLite, the last page pointer is at offset 
+28-31
+# From the hex we see: ...0160a0400210774657374776f726430393fe0000000000000
+# 0x16 = 22 could be page number
+# 0x0a0400 could be format
+
+# Let's try to fix the header and reconstruct
+# The first 16 bytes should be the magic string 'SQLite format 3\x00'
+# Then: page_size (2 bytes), file_format_write (1), file_format_read (1), 
+#       format_write (1), format_read (1), reserved_space (1), 
+max_embedded_payload_fraction (1),
+#       min_embedded_payload_fraction (1), leaf_payload_fraction (1)
+
+# What we have at start: 0d 00 00 00 0a 0f 49 00 0f f0 0f df 0f ce 0f bd
+# 0d = 13... not the right magic
+
+# Maybe the database was truncated at the beginning and the header is lost.
+# Let's try to find and reconstruct from the data we have.
+
+# Look at all the testword entries and their apparent values
+# testword00 at offset ~4086, testword01 at ~4069, etc.
+# The values seem to be: 00, 0102, 010e, 0120?, etc.
+
+# Let me parse the cell format from the end
+print()
+print('Parsing cell records from the end of file:')
+cells = data[-256:]
+# Each cell seems to start with 0x21 ('!') 
+# Then a byte for length/variable length encoding
+# Then the word text
+# Then the value
+
+# Let's look at the pattern more carefully
+i = len(cells) - 1
+while i >= 0:
+    if cells[i] == 0x21:  # '!'
+        # Found a cell start going backwards
+        # The byte after ! is the payload length or encoding
+        # Let's read forward from here
+        pass
+    i -= 1
+"
+```
+
+Tool:
+<returncode>
+0
+<output>
+File size: 4096 bytes
+
+Parsing cell records from the end of file:
+
+────────────────────────────────────────────────────────────────────────────────
+
+mini-swe-agent (step 12, $0.00):
+```
+python3 << 'PYEOF'
+data = open('/app/trunc.db', 'rb').read()
+print(f"File size: {len(data)} bytes")
+
+# The last byte is 0x0d = 13, maybe a page number or counter
+print(f"Last few bytes: {data[-10:].hex()}")
+
+# Let's look at the structure more carefully
+# SQLite page format: header is first 100 bytes (for 4KB page)
+# But our file seems to have been truncated
+
+# Let's try to find all occurrences of testword and what follows
+import re
+# Find testword followed by digits
+for m in re.finditer(b'testword', data):
+    start = m.start()
+    context = data[start:start+30]
+    print(f"Offset {start}: {context}")
+
+PYEOF
+```
+
+Tool:
+<returncode>
+0
+<output>
+File size: 4096 bytes
+Last few bytes: 74657374776f72643030
+Offset 3919: b'testword09?\xe0\x00\x00\x00\x00\x00\x00\x16\t\x04\x00!\x07testwo'
+Offset 3943: b'testword08@X\xff\\(\xf5\xc2\x8f\x0f\x08\x04\x00!\x01testwo'
+Offset 3967: b'testword07c\x0f\x07\x04\x00!\x01testword06K\x0f\x06'
+Offset 3984: b'testword06K\x0f\x06\x04\x00!\x01testword052\x0f\x05'
+Offset 4001: b'testword052\x0f\x05\x04\x00!\x01testword04*\x0f\x04'
+Offset 4018: b'testword04*\x0f\x04\x04\x00!\x01testword03\x19\x0f\x03'
+Offset 4035: b'testword03\x19\x0f\x03\x04\x00!\x01testword02\n\x0f\x02'
+Offset 4052: b'testword02\n\x0f\x02\x04\x00!\x01testword01\x02\x0e\x01'
+Offset 4069: b'testword01\x02\x0e\x01\x04\x00!\ttestword00'
+Offset 4086: b'testword00'
+
+────────────────────────────────────────────────────────────────────────────────
+
+mini-swe-agent (step 13, $0.00):
+```
+python3 << 'PYEOF'
+data = open('/app/trunc.db', 'rb').read()
+print(f"File size: {len(data)} bytes")
+
+# The cells appear at the end of the file
+# Each cell has format: 0x21 + value_bytes + "testwordXX"
+# But looking at the data, the structure going from end is:
+# testword00 (at very end, no 0x21 prefix)
+# testword01 preceded by 0x02 0x0e 0x01 0x04 0x00 0x21
+# testword02 preceded by 0x0a 0x0f 0x02 0x04 0x00 0x21
+# etc.
+
+# Let me find the 0x21 markers and what's before them
+print("\nFinding 0x21 markers:")
+positions = []
+i = 0
+while True:
+    pos = data.find(b'\x21', i)
+    if pos == -1:
+        break
+    positions.append(pos)
+    i = pos + 1
+print(f"Positions of 0x21: {positions}")
+
+# For each 0x21, look at the bytes before it
+for pos in positions:
+    # Get bytes before 0x21 (up to 10 bytes)
+    start = max(0, pos - 10)
+    before = data[start:pos]
+    # Get after 0x21
+    after = data[pos+1:pos+30]
+    # Find the associated testword
+    # testword seems to be just before the value bytes
+    print(f"0x21 at offset {pos}: 
+before={before.hex()}='{before.decode('ascii',errors='replace')}' 
+after={after[:20]}")
+
+PYEOF
+```
+
+Tool:
+<returncode>
+0
+<output>
+File size: 4096 bytes
+
+Finding 0x21 markers:
+Positions of 0x21: [3917, 3941, 3965, 3982, 3999, 4016, 4033, 4050, 4067, 4084]
+0x21 at offset 3917: before=000000000000160a0400='      
+ ' after=b'\x07testword09?\xe0\x00\x00\x00\x00\x00\x00\x16'
+0x21 at offset 3941: before=00000000000016090400='             ' 
+after=b'\x07testword08@X\xff\\(\xf5\xc2\x8f\x0f'
+0x21 at offset 3965: before=ff5c28f5c28f0f080400='�\(��� ' 
+after=b'\x01testword07c\x0f\x07\x04\x00!\x01te'
+0x21 at offset 3982: before=6f72643037630f070400='ord07c ' 
+after=b'\x01testword06K\x0f\x06\x04\x00!\x01te'
+0x21 at offset 3999: before=6f726430364b0f060400='ord06K ' 
+after=b'\x01testword052\x0f\x05\x04\x00!\x01te'
+0x21 at offset 4016: before=6f72643035320f050400='ord052 ' 
+after=b'\x01testword04*\x0f\x04\x04\x00!\x01te'
+0x21 at offset 4033: before=6f726430342a0f040400='ord04* ' 
+after=b'\x01testword03\x19\x0f\x03\x04\x00!\x01te'
+0x21 at offset 4050: before=6f72643033190f030400='ord03 ' 
+after=b'\x01testword02\n\x0f\x02\x04\x00!\x01te'
+0x21 at offset 4067: before=6f726430320a0f020400='ord02
+ ' after=b'\x01testword01\x02\x0e\x01\x04\x00!\tte'
+0x21 at offset 4084: before=6f72643031020e010400='ord01 ' after=b'\ttestword00'
+
+────────────────────────────────────────────────────────────────────────────────

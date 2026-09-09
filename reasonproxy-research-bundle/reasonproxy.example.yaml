@@ -1,0 +1,267 @@
+# ReasonProxy illustrative V1 configuration.
+# This is a design contract, not a promise that an implementation already accepts every key.
+
+version: 1
+
+server:
+  host: 0.0.0.0
+  port: 8080
+  log_level: INFO
+  semantic_statelessness: true
+  request_body_max_bytes: 16777216
+  request_timeout_seconds: 180
+  expose_trace_headers: true
+  auth:
+    mode: bearer_env
+    bearer_token_env: REASONPROXY_API_KEY
+
+protocol:
+  canonical_endpoint: /v1/chat/completions
+  expose_models_endpoint: true
+  responses_api:
+    enabled: false
+    require_replayed_history: true
+  streaming:
+    accepted: true
+    mode: buffer_then_sse
+  unknown_request_fields: preserve_safe
+  unknown_response_fields: preserve_safe
+
+internal_tool:
+  friendly_name: reason
+  wire_name: __reasonproxy_reason
+  collision_policy: reject
+  strict_schema: true
+  parameters:
+    type: object
+    properties: {}
+    additionalProperties: false
+
+persistence:
+  default_mode: auto
+  modes:
+    assistant_tags:
+      enabled: true
+      tag_name: deliberation
+      version: "1"
+      sign_blocks: false
+      hmac_key_env: REASONPROXY_HMAC_KEY
+      max_checkpoint_tokens: 512
+      persist_only_latest_checkpoint_per_request: true
+    ephemeral:
+      enabled: true
+    schema_adapter:
+      enabled: false
+  auto_policy:
+    strict_json_schema: ephemeral
+    known_content_plus_tool_client: assistant_tags
+    unknown_client: ephemeral
+
+prompts:
+  controller-neutral-v1:
+    source: builtin
+    id: controller-neutral-v1
+  controller-outsourcing-v1:
+    source: builtin
+    id: controller-outsourcing-v1
+  branch-same-agent-v1:
+    source: builtin
+    id: branch-same-agent-v1
+  reducer-checkpoint-v1:
+    source: builtin
+    id: reducer-checkpoint-v1
+
+providers:
+  zai:
+    kind: openai_compatible
+    base_url: https://api.z.ai/api/paas/v4
+    api_key_env: ZAI_API_KEY
+    default_headers: {}
+    request_concurrency: 32
+    timeout_seconds: 120
+    retries:
+      max_attempts: 2
+      retry_statuses: [408, 429, 500, 502, 503, 504]
+  moonshot:
+    kind: openai_compatible
+    base_url: https://api.moonshot.ai/v1
+    api_key_env: MOONSHOT_API_KEY
+    default_headers: {}
+    request_concurrency: 32
+    timeout_seconds: 120
+    retries:
+      max_attempts: 2
+      retry_statuses: [408, 429, 500, 502, 503, 504]
+
+model_backends:
+  glm53-controller:
+    provider: zai
+    model: glm-5.3
+    role: controller
+    parameters:
+      temperature: 0
+      reasoning_effort: low
+      max_tokens: 8192
+    capabilities:
+      tools: true
+      content_with_tool_calls: verify_at_runtime
+      images: verify_at_runtime
+
+  glm53-branch-a:
+    provider: zai
+    model: glm-5.3
+    role: branch
+    parameters:
+      temperature: 0.6
+      reasoning_effort: low
+      max_tokens: 512
+
+  glm53-branch-b:
+    provider: zai
+    model: glm-5.3
+    role: branch
+    parameters:
+      temperature: 0.9
+      reasoning_effort: low
+      max_tokens: 512
+
+  kimi3-branch-a:
+    provider: moonshot
+    model: kimi-k3
+    role: branch
+    parameters:
+      temperature: provider_recommended
+      reasoning_effort: low
+      max_tokens: 512
+
+  kimi3-branch-b:
+    provider: moonshot
+    model: kimi-k3
+    role: branch
+    parameters:
+      temperature: provider_recommended
+      reasoning_effort: low
+      max_tokens: 512
+
+  glm-flash-reducer:
+    provider: zai
+    model: glm-5.3-flash
+    role: reducer
+    parameters:
+      temperature: 0
+      reasoning_effort: low
+      max_tokens: 512
+
+virtual_models:
+  reason/glm-5.3-homogeneous:
+    controller: glm53-controller
+    branch_set:
+      - glm53-branch-a
+      - glm53-branch-b
+      - glm53-branch-a
+      - glm53-branch-b
+    reducer: glm-flash-reducer
+    prompts:
+      controller: controller-neutral-v1
+      branch: branch-same-agent-v1
+      reducer: reducer-checkpoint-v1
+    limits:
+      max_reason_calls_per_external_request: 2
+      max_total_upstream_calls_per_external_request: 16
+      min_successful_branches: 2
+      branch_phase_timeout_seconds: 45
+      reducer_timeout_seconds: 30
+      controller_call_timeout_seconds: 90
+    failure_policy:
+      branch_quorum_failure: reduce_available
+      reducer_failure: deterministic_concat
+      controller_resume_failure: fail
+    persistence_mode: auto
+
+  reason/glm-5.3-heterogeneous:
+    controller: glm53-controller
+    branch_set:
+      - glm53-branch-a
+      - glm53-branch-b
+      - kimi3-branch-a
+      - kimi3-branch-b
+    reducer: glm-flash-reducer
+    prompts:
+      controller: controller-neutral-v1
+      branch: branch-same-agent-v1
+      reducer: reducer-checkpoint-v1
+    limits:
+      max_reason_calls_per_external_request: 2
+      max_total_upstream_calls_per_external_request: 16
+      min_successful_branches: 2
+      branch_phase_timeout_seconds: 45
+      reducer_timeout_seconds: 30
+      controller_call_timeout_seconds: 90
+    failure_policy:
+      branch_quorum_failure: reduce_available
+      reducer_failure: deterministic_concat
+      controller_resume_failure: fail
+    persistence_mode: auto
+
+  reason/glm-5.3-ephemeral:
+    controller: glm53-controller
+    branch_set:
+      - glm53-branch-a
+      - glm53-branch-b
+      - kimi3-branch-a
+      - kimi3-branch-b
+    reducer: glm-flash-reducer
+    prompts:
+      controller: controller-neutral-v1
+      branch: branch-same-agent-v1
+      reducer: reducer-checkpoint-v1
+    limits:
+      max_reason_calls_per_external_request: 2
+      max_total_upstream_calls_per_external_request: 16
+      min_successful_branches: 2
+      branch_phase_timeout_seconds: 45
+      reducer_timeout_seconds: 30
+      controller_call_timeout_seconds: 90
+    persistence_mode: ephemeral
+
+telemetry:
+  enabled: true
+  jsonl_path: ./runs/reasonproxy-events.jsonl
+  include_branch_text: benchmark_only
+  include_reducer_text: benchmark_only
+  redact_authorization_headers: true
+  redact_environment_patterns:
+    - '*_API_KEY'
+    - '*_TOKEN'
+    - '*_SECRET'
+  open_telemetry:
+    enabled: false
+    endpoint: null
+  response_headers:
+    trace_id: X-ReasonProxy-Trace-Id
+    reason_calls: X-ReasonProxy-Reason-Calls
+
+accounting:
+  pricing_snapshot_date: 2026-09-04
+  prefer_provider_reported_cost: true
+  fail_on_unknown_cost_in_benchmark_mode: false
+  price_table_file: ./configs/prices.2026-09-04.yaml
+
+benchmark_mode:
+  enabled: false
+  disable_exact_response_cache: true
+  disable_semantic_cache: true
+  disable_cross_trial_singleflight: true
+  save_internal_traces: true
+  require_run_manifest: true
+  pin_prompt_hashes: true
+  fallback_model_substitution: false
+
+security:
+  worker_provider_allowlist: [zai, moonshot]
+  workers_have_external_tools: false
+  reducer_has_external_tools: false
+  allow_recursive_reason: false
+  max_branch_count: 8
+  max_checkpoint_bytes: 16384
+  trust_deliberation_only_from_assistant_role: true

@@ -1,0 +1,51 @@
+# Local end-to-end smoke against scripts/fake_upstream.py. No provider spend.
+#
+#   python scripts/fake_upstream.py --port 9099
+#   REASONPROXY_CONFIG=configs/local-smoke.yaml python -m reasonproxy.app
+#
+# Exercises the real HTTP path, the rate gate, the retry logic and all three
+# reason modes. The fake server answers every model id below, so rp/smoke is
+# the quorum-satisfied happy path: four workers always return.
+#
+# reason_mode is quoted: PyYAML is YAML 1.1, where bare `off` is boolean false.
+providers:
+  local:
+    base_url: http://127.0.0.1:9099/v1
+    api_key_env: LOCAL_FAKE_KEY
+    timeout_s: 30
+
+backends:
+  # No output caps and no sampling knobs: the fake server returns fixed
+  # envelopes, so any parameter here would only be decoration.
+  ctrl:    {provider: local, model: fake-controller}
+  w-a:     {provider: local, model: fake-worker-a}
+  w-b:     {provider: local, model: fake-worker-b}
+  w-c:     {provider: local, model: fake-worker-c}
+  w-d:     {provider: local, model: fake-worker-d}
+  reducer: {provider: local, model: fake-reducer}
+
+virtual_models:
+  # live: full fan-out, hard quorum of four, real reduction.
+  rp/smoke:
+    controller: ctrl
+    reason_mode: live
+    controller_prompt: concise
+    branches: [w-a, w-b, w-c, w-d]
+    reducer: reducer
+    min_branches: 4
+    max_reason_calls: 2
+    branch_timeout_s: 30
+    persistence: assistant_tags
+  # noop: same prompt, same advertised tool, same loop bound, no workers.
+  noop/smoke:
+    controller: ctrl
+    reason_mode: noop
+    controller_prompt: concise
+    max_reason_calls: 2
+  # off: nothing injected, nothing intercepted.
+  ctl/direct:
+    controller: ctrl
+    reason_mode: "off"
+
+trace_path: runs/smoke.jsonl
+trace_texts: true

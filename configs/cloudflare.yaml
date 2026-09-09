@@ -1,0 +1,180 @@
+# ReasonProxy -- exploratory Cloudflare-only conditions. NOT the active roster.
+#
+# The active roster is configs/research.yaml (app.py's default). Load this file
+# explicitly (REASONPROXY_CONFIG or --config) when Zen is unavailable and a
+# CF-only run is still wanted, or to explore a single-provider ensemble.
+#
+# rp/cf-homogeneous is NOT a matched homogeneity control for rp/* in
+# research.yaml and does not isolate family diversity. It shares only the
+# sample count (4) and the temperature multiset {0.7, 0.7, 0.7, 1.0}; the
+# controller, the branch models, the provider set AND the reducer
+# (red-cf-super instead of red-zen-mimo) all differ. Read it as an exploratory
+# CF-only single-model system, not a one-variable comparison.
+#
+# Evidence status, stated exactly:
+#   @cf/nvidia/nemotron-3-120b-a12b  live-verified: native tool call,
+#       assistant+tool history replay, json_object output
+#       (runs/onboarding/provider-contracts.json, provider-replay.json).
+#   GLM 5.3 / GLM 5.3 Flash / DeepSeek V4 Pro / DeepSeek V4 Flash  exact ids
+#       confirmed against an authenticated Cloudflare /ai/models/search read
+#       (HTTP 200), but NOT protocol-probed. Catalog presence is not
+#       tool-calling, history-replay or json-mode conformance: run
+#       `python scripts/probe.py configs/cloudflare.yaml` before trusting the
+#       GLM/DeepSeek conditions.
+#   @cf/openai/gpt-oss-120b, @cf/moonshotai/kimi-k2.7-code and
+#       @cf/google/gemma-4-26b-a4b-it are also catalog models but are not wired
+#       into a condition here, so this file declares no unused backends.
+#
+# Workers AI calls are billed in account neurons (usage.neurons in the
+# onboarding evidence) and no free entitlement for this account was verified,
+# so these conditions must not be described as free. As in research.yaml there
+# are no output caps and no native reasoning reductions, and no latency,
+# throughput, rpm or caching number is claimed -- none was measured under
+# benchmark conditions.
+#
+# timeout_s 300 and branch_timeout_s 420 are operational deadlines that may end
+# a real, still-running generation; an expired branch is failed "timeout",
+# which under min_branches 4 makes the turn a traced degraded turn.
+#
+# reason_mode is quoted: PyYAML is YAML 1.1, where bare `off` is boolean false.
+
+providers:
+  cf:
+    # Workers AI OpenAI-compatible endpoint, no AI Gateway in front of it, so
+    # no cf-aig-* header is declared. timeout_s bounds one HTTP attempt.
+    base_url: https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/v1
+    api_key_env: CLOUDFLARE_API_TOKEN
+    timeout_s: 300
+
+backends:
+  # ---------------------------------------------------------------- controllers
+  # temperature is a default only: caller sampling parameters take precedence.
+  # parallel_tool_calls stays undeclared (unverified on this endpoint; the
+  # engine already discards real tool calls that arrive beside a reason call).
+  ctrl-cf-super:
+    provider: cf
+    model: "@cf/nvidia/nemotron-3-120b-a12b"
+    params: {temperature: 0.0}
+  ctrl-cf-glm53:
+    provider: cf
+    model: "@cf/zai-org/glm-5.3"
+    params: {temperature: 0.0}
+  ctrl-cf-deepseek-pro:
+    provider: cf
+    model: "@cf/deepseek-ai/deepseek-v4-pro-0813"
+    params: {temperature: 0.0}
+
+  # ------------------------------------------------------ single-model branches
+  # Four samples of one model. The temperature multiset equals the one used by
+  # the research.yaml branch roster, but the reducer and provider set differ,
+  # so model identity is not the only changed variable.
+  br-cf-super:
+    provider: cf
+    model: "@cf/nvidia/nemotron-3-120b-a12b"
+    params: {temperature: 0.7}
+  br-cf-super-hot:
+    provider: cf
+    model: "@cf/nvidia/nemotron-3-120b-a12b"
+    params: {temperature: 1.0}
+
+  # ----------------------------------------------------- Zhipu/DeepSeek branches
+  # The original CF ensemble choice kept as an alternative condition: two
+  # reasoning-heavy models and their flash siblings, four continuations.
+  br-cf-glm53:
+    provider: cf
+    model: "@cf/zai-org/glm-5.3"
+    params: {temperature: 0.7}
+  br-cf-glm53-flash:
+    provider: cf
+    model: "@cf/zai-org/glm-5.3-flash"
+    params: {temperature: 0.7}
+  br-cf-deepseek-pro:
+    provider: cf
+    model: "@cf/deepseek-ai/deepseek-v4-pro-0813"
+    params: {temperature: 0.7}
+  br-cf-deepseek-flash:
+    provider: cf
+    model: "@cf/deepseek-ai/deepseek-v4-flash-0731"
+    params: {temperature: 1.0}
+
+  # -------------------------------------------------------------------- reducers
+  # The engine sets response_format={"type": "json_object"} on the reducer call
+  # itself, so it is never declared in params here.
+  red-cf-super:                 # json_object output live-verified
+    provider: cf
+    model: "@cf/nvidia/nemotron-3-120b-a12b"
+    params: {temperature: 0.0}
+  red-cf-glm53-flash:           # json_object output NOT probed -- probe first
+    provider: cf
+    model: "@cf/zai-org/glm-5.3-flash"
+    params: {temperature: 0.0}
+
+  # max_concurrent stays at the schema default (4) everywhere. Rate gates are
+  # shared per (provider, model) and take the minimum across aliases, so all
+  # five @cf/nvidia/nemotron-3-120b-a12b aliases share one limit of 4, the same
+  # width as rp/cf-homogeneous's four-sample fan-out. Raising it means raising
+  # it on every alias of that model, because the minimum wins. rpm is omitted
+  # because no documented per-model limit was verified; Upstream retries 429s
+  # with backoff.
+
+virtual_models:
+  # ===== exploratory CF-only system on the fully live-verified model =====
+  # Not a diversity-isolated control; see the header.
+  ctl/cf-super:
+    controller: ctrl-cf-super
+    reason_mode: "off"
+  noop/cf-super:
+    controller: ctrl-cf-super
+    reason_mode: noop
+    controller_prompt: concise
+    max_reason_calls: 2
+  rp/cf-homogeneous:
+    controller: ctrl-cf-super
+    reason_mode: live
+    controller_prompt: concise
+    branches: [br-cf-super, br-cf-super, br-cf-super, br-cf-super-hot]
+    # In-set reducer, as in research.yaml, but a different reducer model: the
+    # reducer is Super here and MiMo there, so that confound is not held
+    # constant between the two files.
+    reducer: red-cf-super
+    min_branches: 4             # hard quorum; less is a traced degraded turn
+    max_reason_calls: 2
+    branch_timeout_s: 420
+    persistence: assistant_tags
+
+  # ===== GLM 5.3 acting agent, Zhipu/DeepSeek ensemble (probe before use) =====
+  ctl/cf-glm53:
+    controller: ctrl-cf-glm53
+    reason_mode: "off"
+  rp/cf-gd-core:
+    controller: ctrl-cf-glm53
+    reason_mode: live
+    controller_prompt: concise
+    branches: [br-cf-glm53, br-cf-deepseek-pro, br-cf-glm53-flash, br-cf-deepseek-flash]
+    reducer: red-cf-glm53-flash
+    min_branches: 4
+    max_reason_calls: 2
+    branch_timeout_s: 420
+    persistence: assistant_tags
+
+  # ===== DeepSeek V4 Pro acting agent, same ensemble (probe before use) =====
+  ctl/cf-deepseek-pro:
+    controller: ctrl-cf-deepseek-pro
+    reason_mode: "off"
+  rp/cf-deepseek-captain:
+    controller: ctrl-cf-deepseek-pro
+    reason_mode: live
+    controller_prompt: concise
+    branches: [br-cf-glm53, br-cf-deepseek-pro, br-cf-glm53-flash, br-cf-deepseek-flash]
+    reducer: red-cf-glm53-flash
+    min_branches: 4
+    max_reason_calls: 2
+    branch_timeout_s: 420
+    persistence: assistant_tags
+
+# Separate trace file: these exploratory conditions must not be appended into
+# the audited research trace that the benchmark runner joins trials against.
+trace_path: runs/cloudflare.jsonl
+# Exploratory file, so branch and checkpoint text IS captured here, into that
+# separate trace only. The active roster (configs/research.yaml) keeps text off.
+trace_texts: true

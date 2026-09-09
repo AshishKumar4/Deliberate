@@ -1,0 +1,77 @@
+# ReasonProxy -- UNVERIFIED paid baseline template. Opt-in only, NEVER a default.
+#
+# Nothing in this file is proven usable. No id, endpoint, parameter or
+# capability below is backed by a live call, and OpenAI-compatibility of each
+# endpoint is assumed from vendor documentation only. Treat every alias here as
+# a template to validate, not a working arm.
+#
+# The purpose is that a paid target can be run through the exact same proxy path
+# as the deliberation arms (reason_mode "off" = no injection, no interception),
+# which is what makes a "beats model X" comparison matched. The active roster is
+# configs/research.yaml, which uses open-weights models on Zen catalog-free
+# aliases and Cloudflare Workers AI; it contains no paid alias.
+#
+# Preconditions, all of them:
+#   1. Explicit authorization to spend. The benchmark harness runs with cost
+#      limits disabled for every arm, so nothing here is capped by the runner.
+#   2. Protocol evidence. Run `python scripts/probe.py configs/frontier.yaml`
+#      and record the report before quoting any number from this config or
+#      treating any id below as existing.
+#   3. Explicit load: REASONPROXY_CONFIG=configs/frontier.yaml or --config.
+#      app.py defaults to configs/research.yaml.
+#
+# Anthropic direct is intentionally absent. https://api.anthropic.com/v1 is the
+# native Messages surface, not an OpenAI /chat/completions surface, and this
+# proxy speaks only OpenAI-compatible chat completions. Do not re-add it as an
+# `openai`-shaped provider. A Claude baseline is legitimate only through an
+# endpoint that is verifiably OpenAI-compatible, added together with its own
+# probe report.
+#
+# reason_mode is quoted: PyYAML is YAML 1.1, where bare `off` is boolean false.
+
+providers:
+  openai:
+    base_url: https://api.openai.com/v1
+    api_key_env: OPENAI_API_KEY
+    # Per HTTP attempt; may end a generation that is still running.
+    timeout_s: 300
+  google:
+    # Google's documented OpenAI-compatibility endpoint. Documented is not
+    # probed: see precondition 2.
+    base_url: https://generativelanguage.googleapis.com/v1beta/openai
+    api_key_env: GEMINI_API_KEY
+    timeout_s: 300
+
+backends:
+  # params are intentionally empty: no output cap and no reasoning-effort value
+  # is declared for an unprobed paid endpoint, so the baseline runs at provider
+  # defaults and the caller's own sampling parameters pass through. If a
+  # published comparison requires the target at maximum effort, set that here
+  # explicitly and record the exact value in the run manifest -- an unstated
+  # effort setting makes the baseline unmatched.
+  astra:
+    provider: openai
+    model: gpt-6-astra
+  luna:
+    provider: openai
+    model: gpt-5.6-luna
+  flash:
+    provider: google
+    model: gemini-3.8-flash
+
+virtual_models:
+  # Targets only. The deliberation arms live in configs/research.yaml; mixing
+  # paid backends into a live rp/* alias would put paid spend inside a fan-out.
+  target/astra:
+    controller: astra
+    reason_mode: "off"
+  target/luna:
+    controller: luna
+    reason_mode: "off"
+  target/flash:
+    controller: flash
+    reason_mode: "off"
+
+# Separate trace file, so paid baseline turns never land in the audited research
+# trace the benchmark runner joins trials against.
+trace_path: runs/frontier.jsonl

@@ -1,0 +1,110 @@
+# Pier JobConfig for the DeepSWE pilot (pier.models.job.config:JobConfig, Pier 0.3.1).
+#
+# This file is the reviewable single-arm equivalent of what the runner executes
+# and the source of every harness knob the runner does not own.
+# `scripts/benchmark.py run` loads it and replaces:
+#   job_name, jobs_dir                     (one job per planned trial)
+#   datasets                               (exactly one frozen task per job)
+#   agents[0].model_name                   (the arm's alias)
+#   agents[0].kwargs.version|cost_limit    (from the pinned harness table)
+#   agents[0].kwargs.config_yaml           (same values as below, plus a
+#                                           per-trial X-Session-ID header so
+#                                           proxy trace rows join to one trial)
+#   agents[0].env                          (endpoint + local bearer template)
+# Everything else here - environment, verifier, retry, timeout multiplier,
+# concurrency, and any extra agent field - is carried through verbatim, which is
+# what makes this file part of a run's identity: `benchmark.py freeze` hashes it
+# into the manifest and `benchmark.py run` re-checks that hash, so flipping
+# verifier.disable or environment.delete mid-experiment stops the run instead of
+# passing silently (--allow-source-drift proceeds and records the deviation).
+#
+# Runnable standalone (the default arm is the native-default serial baseline):
+#   pier run -c experiments/deepswe/mini-swe.yaml -y
+#
+# Pinned facts and where they come from:
+#   * mini-swe-agent 2.4.6 is installed *inside* the sandbox by Pier
+#     (agents/installed/mini_swe_agent.py install_spec -> `uv tool install
+#     mini-swe-agent==<version kwarg>`), so the version kwarg is the real pin;
+#     the host's mini-swe-agent install is not what runs.
+#   * `hosted_vllm/` keeps mini-swe on LitellmModel, i.e. native function
+#     calling against BASH_TOOL. An `openai/` prefix would switch to the
+#     Responses adapter (_model_class_override) and must not be used.
+#   * model.model_kwargs.api_base is what promotes the agent phase from
+#     no-network to a hostname-only allowlist: agents/network.py
+#     collect_url_values() keys on `api_base`, and allowlist_from_urls()
+#     yields NetworkAllowlist(domains=['host.docker.internal']). The port is
+#     stripped (allowlists are port-blind) and the verifier phase stays
+#     no-network. IP literals are not expressible, hence the hostname.
+#   * agent.cost_limit 0 + MSWEA_COST_TRACKING=ignore_errors: free endpoints
+#     report cost 0.0, which litellm_model._calculate_cost turns into a
+#     RuntimeError unless cost tracking is set to ignore_errors. With cost
+#     pinned to 0 the cost limit can never terminate a run, so the only run
+#     bound is step_limit plus the task's own official agent timeout.
+#   * agent.step_limit 250 is the value mini-swe ships in
+#     config/benchmarks/swebench.yaml. No extra wall-clock or output cap is
+#     added: DeepSWE's own agent timeout_sec (10800) and verifier timeout_sec
+#     (1800) are left untouched, with timeout_multiplier 1.0.
+#   * n_concurrent_trials 1 is mandatory on this host: the Docker VM has
+#     ~7.65 GiB while every DeepSWE task declares memory_mb 8192.
+
+job_name: deepswe-pilot__ctl-zen-lightning__r1
+jobs_dir: runs/deepswe-pilot
+
+n_attempts: 1
+n_concurrent_trials: 1
+timeout_multiplier: 1.0
+retry:
+  max_retries: 0
+
+environment:
+  delete: true
+
+verifier:
+  disable: false
+
+datasets:
+  - path: /Users/mrwhite0racle/.cache/reasonproxy/deep-swe/tasks
+    # Explicit frozen selection (experiments/deepswe/pilot.json). Never a seed:
+    # DatasetConfig._filter_task_ids shuffles Path.iterdir() order, which is not
+    # portable across clones or machines.
+    task_names:
+      - dynamodb-toolbox-lazy-recursive-schemas
+      - arktype-json-schema-refs-dependencies
+      - query-persist-restored-query-state
+      - etree-xml-diff-patch
+      - opa-template-string-reconstruction
+      - pebble-durability-wait-apis
+      - fastapi-deprecation-response-headers
+      - adaptix-name-mapping-aliases
+      - skrub-duration-encoding
+      - testem-bail-on-test-failure
+    exclude_task_names:
+      - ytt-jsonpath-query-api  # reserved conformance/dev task
+
+agents:
+  - name: mini-swe-agent
+    model_name: hosted_vllm/ctl/zen-lightning
+    kwargs:
+      version: "2.4.6"
+      cost_limit: "0"
+      config_yaml: |
+        agent:
+          step_limit: 250
+          cost_limit: 0.
+        model:
+          model_kwargs:
+            api_base: http://host.docker.internal:8100/v1
+            drop_params: true
+            parallel_tool_calls: true
+    env:
+      MSWEA_COST_TRACKING: ignore_errors
+      # Local proxy bearer token only. Resolved from the host environment at
+      # trial construction (pier.agents.factory -> utils.env.resolve_env_vars);
+      # the template text is what gets persisted into config.json, so no secret
+      # reaches any artifact. MSWEA_API_KEY satisfies Pier's own key check and
+      # HOSTED_VLLM_API_KEY is the variable litellm actually reads for the
+      # hosted_vllm provider. Provider (Zen/Cloudflare) credentials never enter
+      # the sandbox; they exist only in the host ReasonProxy process.
+      MSWEA_API_KEY: ${REASONPROXY_API_KEY}
+      HOSTED_VLLM_API_KEY: ${REASONPROXY_API_KEY}
+      HOSTED_VLLM_API_BASE: http://host.docker.internal:8100/v1

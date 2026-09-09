@@ -1,0 +1,29 @@
+{
+  "question": "Why do zero of 60 matched replay requests across 5 controllers invoke __reasonproxy_reason?",
+  "scope": "Harness-side diagnosis only. No provider default (temperature, top_p, budgets) was changed in any experiment.",
+  "eliminated": [
+    {"cause": "Tool schema never reaches the model", "verdict": "ELIMINATED", "evidence": "Controller-call instrumentation recorded __reasonproxy_reason in offered_tools on every one of 60 replay requests; no tool_choice blocking; no reason_suppressed on any trial row. Direct binding tests with [bash, __reasonproxy_reason] return 200."},
+    {"cause": "Harness cannot receive private-only turns", "verdict": "ELIMINATED", "evidence": "engine.py interception returns an outward response only when no private call is present; private-only turns are re-queried before mini ever sees them. Control session trace shows 4 branches + accepted reduction + checkpoint end to end."},
+    {"cause": "Models cannot see the instruction at all", "verdict": "ELIMINATED for 4/5", "evidence": "visibility-probe/summary.json: CF Super, Lightning, GLM 5.2, GLM 5.3 Flash each name the private tool and describe deliberation on direct query. Ling is the exception (names neither, emits bash instead)."},
+    {"cause": "Bash mandate alone blocks uptake", "verdict": "DEMOTED, not sole cause", "evidence": "Probe tools-phase records (remote-ai-contracts.json) show the controller emitting ['shell'] and choosing another tool even with a generic shell tool and no mini mandate. The mandate widens a gap that exists without it."},
+    {"cause": "Scope-clarification wording fixes it", "verdict": "REFUTED for the tested wording", "evidence": "uptake-scope-replay/summary.json 0/12 vs 0/12; uptake-additional-models/summary.json 0/18 vs 0/18. Identical caller input per pair; all outward actions valid."}
+  ],
+  "remaining_cause": {
+    "statement": "Models recognize the private tool on direct query but never recall or select it during task work: recognition without selection.",
+    "supporting_evidence": [
+      "Zero spontaneous mentions of the tool, deliberation, or checkpoints in any model-authored trajectory text across 4 audited rp trials; only metadata fields (reasonproxy_usage cost tracking) match.",
+      "When asked to act (probe tools phase, 60 harness replays), every controller chooses the familiar action tool; when asked to report (visibility probe), 4/5 describe the private tool. The gap is decision, not knowledge.",
+      "Context asymmetry at the decision point: ~3.1KB user mandate with MUST-bash rule plus correct-response example vs ~0.6KB system note describing an unfamiliar do-nothing tool as optional ('Skip it for routine steps') with no usage example and no demonstrated checkpoint integration.",
+      "Self-deferring prompt: caller instructions stay authoritative, no superiority over native reasoning claimed; all controllers emit native reasoning_content, making 'extra deliberation' read as redundant.",
+      "Dunder-private naming reads as runtime internals, not as an instrument for the model."
+    ]
+  },
+  "role_of_temperature": "All uptake measurements ran at the configured controller default 0.0, which reports the argmax path, not the selection propensity distribution. This is a measurement limitation, not a claim that temperature causes the zero. Per instruction, provider defaults were not varied to quantify propensity.",
+  "ling_exception": "Ling 3.0 Flash Fin Free fails earlier: it does not report either tool on direct query and emits bash instead of answering. Weaker instruction-following; its zero uptake shares the group pattern but its mechanism includes recognition failure.",
+  "what_would_change_selection_without_touching_provider_defaults": [
+    "A demonstrated value proposition inside the proxy prompt: what a checkpoint contains and when one changed an action (still optional, still unforced). Untested.",
+    "A usage example showing the private-alone turn followed by the outward bash turn. Untested; counts as prompt elicitation, not a provider change.",
+    "Explicitly rejected: forcing tool_choice (fabricates uptake), editing mini's packaged prompt (breaks same-harness comparability), changing temperature/sampling (provider defaults, refused)."
+  ],
+  "bottom_line": "The deliberation capability is plumbed, visible, and functional, but nothing at the decision point gives any of the five controllers a reason to spend its one tool-call turn on an unfamiliar optional no-observable-effect call instead of the mandatory familiar action. The zero is a rational response to the context as written, not a transport bug."
+}

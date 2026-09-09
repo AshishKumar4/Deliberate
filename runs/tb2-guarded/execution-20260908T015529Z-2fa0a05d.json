@@ -1,0 +1,372 @@
+{
+  "schema": "reasonproxy.execution/1",
+  "written_utc": "2026-09-08T01:59:59.785950+00:00",
+  "suite": "terminal-bench-2",
+  "runner": "harbor",
+  "runner_version": "0.22.0",
+  "native_launch": {
+    "venv_python": "/Users/mrwhite0racle/.local/share/uv/tools/harbor/bin/python3",
+    "bootstrap": "scripts/native_harness.py",
+    "bootstrap_sha256": "2237b005137c46b2ff0482f11c8031c58ccb77622599126d64ce7663cd8dac1f",
+    "policy_version": "native-exec-cancellation-guard/2",
+    "policy_digest": "9c5ffe3304d8c97db60fcd7dc4b025d1e29919c5a741106f42c9366ef05b08b0",
+    "target_digest": "851d3aeeca959bdcaffbc35e465f778ebdf05925e06d594b0eefc776fa9c13e3",
+    "cancellation_policy": {
+      "container_dependencies": {
+        "optional": [
+          "readlink (adds the inherited-stdio-pipe signal)"
+        ],
+        "required": [
+          "bash",
+          "Linux /proc",
+          "kill",
+          "sleep"
+        ]
+      },
+      "digest": "9c5ffe3304d8c97db60fcd7dc4b025d1e29919c5a741106f42c9366ef05b08b0",
+      "fail_closed": [
+        "install-time verification of the patched method's presence, coroutine-ness and signature",
+        "per-environment containment probe (marker visible in /proc/self/environ, foreign environ readable, /proc enumerable) before the first main-container exec runs",
+        "unparseable exec argv, detached (-d) exec, or Windows container: the exec is refused, never run unguarded",
+        "unproven containment latches the harness process: every later main-container exec, including fresh verifier environments, is refused"
+      ],
+      "known_limits": [
+        "a descendant that simultaneously replaces its environment, calls setsid, re-parents to PID 1 and closes the exec's stdio shares no inherited signal with the exec and is not detected",
+        "SIGKILL of the harness process itself leaves no opportunity to contain anything",
+        "no claim is made about deliberate escapes from a co-operating or hostile in-container process beyond the four signals above"
+      ],
+      "ladder": {
+        "abort_late_rounds": 4,
+        "late_round_interval_sec": 0.25,
+        "post_client_late_rounds": 2,
+        "probe_timeout_sec": 60,
+        "sweep_timeout_sec": 20,
+        "term_grace_sec": 2
+      },
+      "never_signalled": [
+        "pid 1",
+        "the reaper shell itself",
+        "zombies (already terminated; unreapable from inside, and excluded from the survivor count for the same reason)",
+        "anything outside the union above"
+      ],
+      "ownership_signals": [
+        "NATIVE_EXEC_GUARD_ID=<per-exec uuid4> present in /proc/<pid>/environ (inherited across fork/exec, survives re-parenting)",
+        "descendant of a marked root via /proc/<pid>/stat ppid chain (<=64 hops)",
+        "member of a process group led by a marked root",
+        "holder of this exec's inherited stdio pipe, matched by /proc/<pid>/fd/{0,1,2} link target (skipped when the container has no readlink)"
+      ],
+      "patched": {
+        "also": "asyncio.create_subprocess_exec (observation only; passthrough when no guarded exec is active)",
+        "method": "DockerEnvironment._run_docker_compose_command",
+        "out_of_scope": "sidecar-service execs, non-exec compose commands (build/up/ps/cp/down), Windows containers (explicitly rejected)",
+        "scope": "compose `exec` argv whose service is the harness main service"
+      },
+      "preserved": [
+        "argv, shell wrapper, cwd, user, stdin, stdout streaming, exit code",
+        "the original exception object and its type on the abort path",
+        "normal completion (no sweep, no extra container work)",
+        "unrelated pre-existing container services and concurrently marked execs"
+      ],
+      "scripts": {
+        "probe_sha256": "738d6f809f80a6832ca04e0f0eb5e1304b39fcf0e775cd4826c1641c5e9a0d82",
+        "reaper_sha256": "df24e9d365ba5e3efba795d6009250c6da41bfd8a87c480b280073a704442e5d"
+      },
+      "summary": "On any abnormal exit (asyncio cancellation, harness exec timeout, host error) from a Linux main-container `docker compose exec`, the in-container command and its active descendants are SIGTERMed, then SIGKILLed and verified gone, before the exception propagates and the verifier phase starts; the host docker client and its host-side descendants are reaped afterwards, then containment is re-verified.",
+      "transport": "the compose argv prefix and environment observed from the guarded exec itself, reused verbatim for the reaper",
+      "version": "native-exec-cancellation-guard/2"
+    },
+    "patched_runtime": {
+      "class": {
+        "qualname": "harbor.environments.docker.docker.DockerEnvironment"
+      },
+      "main_service": "main",
+      "methods": {
+        "_collect_buffered_output": {
+          "present": true,
+          "signature": "(process: asyncio.subprocess.Process, *, timeout_sec: int | None, stdin_data: bytes | None = None) -> harbor.environments.base.ExecResult",
+          "source_sha256": "9deccdb55072b381406e67bd5164df6dbd047d1cd4272bb687670688f909ec59"
+        },
+        "_collect_streamed_output": {
+          "present": true,
+          "signature": "(process: asyncio.subprocess.Process, *, timeout_sec: int | None, stdin_data: bytes | None = None, on_output: collections.abc.Callable[[str, typing.Literal['stdout', 'stderr']], collections.abc.Awaitable[None]]) -> harbor.environments.base.ExecResult",
+          "source_sha256": "75eefd2bc921d0d1de1e779cd5ac0729426573b68eb62db547cc81759c561f1f"
+        },
+        "_compose_exec": {
+          "present": true,
+          "signature": "(self, command: str, *, service: str, cwd: str | None, env: dict[str, str] | None, timeout_sec: int | None, user: str | int | None) -> harbor.environments.base.ExecResult",
+          "source_sha256": "0c7a1fdb10b851c5bcd8412e2e242cf8eb8a694b128d448f5bb8d8e3679297b6"
+        },
+        "_run_docker_compose_command": {
+          "present": true,
+          "signature": "(self, command: list[str], check: bool = True, timeout_sec: int | None = None, stdin_data: bytes | None = None, on_output: collections.abc.Callable[[str, typing.Literal['stdout', 'stderr']], collections.abc.Awaitable[None]] | None = None) -> harbor.environments.base.ExecResult",
+          "source_sha256": "3842bcbe9a34192cd67e3b651d4c7ee12313c0daabac0f2d6f5897936168291c"
+        },
+        "_terminate_process": {
+          "present": true,
+          "signature": "(process: asyncio.subprocess.Process) -> None",
+          "source_sha256": "94c45cdbb210dcb46af4ec928cd8ff5f1ca6616a14388279968f0b8482dfcefb"
+        },
+        "exec": {
+          "present": true,
+          "signature": "(self, command: str, cwd: str | None = None, env: dict[str, str] | None = None, timeout_sec: int | None = None, user: str | int | None = None) -> harbor.environments.base.ExecResult",
+          "source_sha256": "2624d5b7ca23ba990ca64ad8e80edb03f7fe80f57816f729426c18cb383de9b5"
+        },
+        "service_exec": {
+          "present": true,
+          "signature": "(self, command: str, *, service: str | None = None, cwd: str | None = None, env: dict[str, str] | None = None, timeout_sec: int | None = None, user: str | int | None = None) -> harbor.environments.base.ExecResult",
+          "source_sha256": "58fb7ba9283864b4a51898bf5b97c6bb07fe3d4e72d2942d0b5107cf0b45ceb8"
+        }
+      },
+      "modules": {
+        "harbor.constants": {
+          "file": "/Users/mrwhite0racle/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/constants.py",
+          "sha256": "adc8213e55facf42a89db48949f62cb95a842c7a417045d477828cd0bff0bb1e"
+        },
+        "harbor.environments.base": {
+          "file": "/Users/mrwhite0racle/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/environments/base.py",
+          "sha256": "74ce73b043041ac8ec3214b73613a9827ca878d8a97b32f0d572a7f9173fef08"
+        },
+        "harbor.environments.docker.docker": {
+          "file": "/Users/mrwhite0racle/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/environments/docker/docker.py",
+          "sha256": "32f7c7b1b875cb9682a172b5cbe9d4c4e5e90c69fedeef5186baf363ed9d00e5"
+        },
+        "harbor.environments.docker.docker_unix": {
+          "file": "/Users/mrwhite0racle/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/environments/docker/docker_unix.py",
+          "sha256": "58b525e4e2fff1ab39997c82c971beba98f5a0dd80984778f493aec0191cb642"
+        }
+      },
+      "package": {
+        "dist": "harbor",
+        "name": "harbor",
+        "version": "0.22.0"
+      },
+      "python": {
+        "executable": "/Users/mrwhite0racle/.local/share/uv/tools/harbor/bin/python3",
+        "version": "3.12.4"
+      },
+      "target_digest": "851d3aeeca959bdcaffbc35e465f778ebdf05925e06d594b0eefc776fa9c13e3"
+    },
+    "entrypoint": "runpy of the original console script, arguments unchanged"
+  },
+  "conformance": false,
+  "dry_run": false,
+  "frozen_manifest": {
+    "path": "runs/frozen/terminal-bench-2-20260907T170001Z.json",
+    "sha256": "c23d17a3059ffaa6f73185552dc778c4486db4b425aec2459aa01bcc5b5c3750"
+  },
+  "counts": {
+    "planned_in_manifest": 45,
+    "requested": 1,
+    "executed": 1,
+    "missing": 0
+  },
+  "filters": {
+    "conditions": [
+      "ctl/zen-lightning-available"
+    ],
+    "tasks": [
+      "log-summary-date-ranges"
+    ],
+    "repeats": null,
+    "limit": null
+  },
+  "requested_trial_keys": [
+    "terminal-bench-2/ctl/zen-lightning-available/log-summary-date-ranges/r1"
+  ],
+  "missing_trial_keys": [],
+  "endpoint": {
+    "proxy_url_in_sandbox": "http://host.docker.internal:8100/v1",
+    "preflight_url": "http://127.0.0.1:8100/v1",
+    "auth": "bearer via ${REASONPROXY_API_KEY} template, resolved by the harness at runtime",
+    "proxy_key_env": "REASONPROXY_API_KEY",
+    "advertised_models": [
+      "ctl/cf-super",
+      "ctl/cf-super-available",
+      "ctl/zen-lightning",
+      "ctl/zen-lightning-available",
+      "ctl/zen-mimo",
+      "noop/cf-super",
+      "noop/cf-super-available",
+      "noop/zen-lightning",
+      "noop/zen-lightning-available",
+      "noop/zen-mimo",
+      "rp/cf-super",
+      "rp/cf-super-available",
+      "rp/zen-lightning",
+      "rp/zen-lightning-available",
+      "rp/zen-mimo"
+    ],
+    "preflight": "ok"
+  },
+  "harness_settings": {
+    "model_name_template": "hosted_vllm/<alias>",
+    "proxy_url_in_sandbox": "http://host.docker.internal:8100/v1",
+    "agent_phase_allowlist": [
+      "host.docker.internal"
+    ],
+    "agent_step_limit": 250,
+    "cost_limit": "disabled (agent.cost_limit=0, MSWEA_COST_TRACKING=ignore_errors)",
+    "added_wall_clock_cap": null,
+    "timeout_multiplier": 1.0,
+    "n_concurrent_trials": 1,
+    "retries": 0,
+    "official_task_limits": "unchanged",
+    "native_exec_cancellation_guard": {
+      "bootstrap": "scripts/native_harness.py",
+      "bootstrap_sha256": "2237b005137c46b2ff0482f11c8031c58ccb77622599126d64ce7663cd8dac1f",
+      "policy_version": "native-exec-cancellation-guard/2",
+      "policy_digest": "9c5ffe3304d8c97db60fcd7dc4b025d1e29919c5a741106f42c9366ef05b08b0",
+      "target_digest": "851d3aeeca959bdcaffbc35e465f778ebdf05925e06d594b0eefc776fa9c13e3",
+      "install_ok": true,
+      "error": null,
+      "summary": "On any abnormal exit (asyncio cancellation, harness exec timeout, host error) from a Linux main-container `docker compose exec`, the in-container command and its active descendants are SIGTERMed, then SIGKILLed and verified gone, before the exception propagates and the verifier phase starts; the host docker client and its host-side descendants are reaped afterwards, then containment is re-verified."
+    },
+    "declared": {
+      "agent_step_limit": 250,
+      "cost_limit": "disabled",
+      "timeout_multiplier": 1.0,
+      "n_concurrent_trials": 1,
+      "external_job_concurrency": 2,
+      "official_limits_unchanged": {
+        "agent_timeout_sec": 900
+      }
+    }
+  },
+  "sources_at_run": {
+    "files": {
+      "src/reasonproxy/__init__.py": "354bf45c3b76e8479df759df0c89c682dde1b3446025950f1da656da68065eb9",
+      "src/reasonproxy/app.py": "f243c227ba57f22baa590d0255e7b711341d31dfc8fd937208ef6e07d7f79f2a",
+      "src/reasonproxy/config.py": "a3442a33f5c4ad8f414ef49563d066e728bb9247329af359491258b3b37ffc6d",
+      "src/reasonproxy/engine.py": "ed0f9afe0b7e6e00c857948309790840418d297452f79dd5ef5981bc27fe8250",
+      "src/reasonproxy/prompts.py": "9547ca3c88c648fe3c8c872f781861e82da8e309a91bfca1ea8fd091bbbd8705",
+      "src/reasonproxy/upstream.py": "3390eabda76a0e79aebe3d7ba46ce0ce4b87b4c6711a55fe667109ad69a01520",
+      "workers/ai/index.js": "417afebd7436fbe7399817db19b799cdcb6fdc54d620f6ad111e4b5058c5c618",
+      "workers/ai/wrangler.jsonc": "d3534a1cdac05d2895a0bf6fc9792b9655f54f25b868a2425b140aa6103354b0",
+      "experiments/deepswe/pilot.json": "ae1a0c5c8662b8ed2f244644fa59eba119acccfbd31e0253742ef352698a337d",
+      "experiments/deepswe/mini-swe.yaml": "0082d4419f1b4c1e025a6bcfdbe23877f165dad6c86d844b1612d26099a267b7",
+      "scripts/benchmark.py": "c4df21528ce1b5a6ae346adc67cddf5b03b85b0065fdde8c7799d9de1f3c6929",
+      "scripts/live_smoke.py": "07d8331a4ea7b83e2aef3d73e3250e23f995522fa9724c0fe0ca12863973e9eb",
+      "scripts/native_harness.py": "2237b005137c46b2ff0482f11c8031c58ccb77622599126d64ce7663cd8dac1f"
+    },
+    "combined_sha256": "935408104b24e55853b59319e20749ca0316b9e5761951fda92693a17ab85de4",
+    "proxy_sha256": "1a3e3c25d74225d1e581c0cff1b308e23367c1a7587e6da055032162ab4e6cad",
+    "note": "No git commit exists for this working tree; these are content hashes."
+  },
+  "roster_sha256_at_run": "8b8f7d56ac937254707c7bfbcc2f9f1b154e5ad9815eaf517f23b93dce294800",
+  "trace_path": "/Users/mrwhite0racle/Deliberate/runs/research.jsonl",
+  "host": {
+    "platform": "macOS-26.5-arm64-arm-64bit",
+    "machine": "arm64",
+    "processor": "arm",
+    "python": "3.12.4",
+    "docker": {
+      "available": true,
+      "server_version": "28.5.1",
+      "architecture": "aarch64",
+      "os_type": "linux",
+      "ncpu": 8,
+      "mem_total_bytes": 8218316800
+    },
+    "emulation_note": "DeepSWE images are linux/amd64; on an arm64 host they execute under emulation, which consumes part of the official agent budget."
+  },
+  "deviations": [],
+  "jobs": [
+    {
+      "job_name": "terminal-bench-2__ctl-zen-lightning-available__log-summary-date-ranges__r1__20260908T015529Z-2fa0a05d",
+      "condition": "ctl/zen-lightning-available",
+      "task": "log-summary-date-ranges",
+      "repeat": 1,
+      "trial_key": "terminal-bench-2/ctl/zen-lightning-available/log-summary-date-ranges/r1",
+      "config_path": "/Users/mrwhite0racle/Deliberate/runs/tb2-guarded/configs/terminal-bench-2__ctl-zen-lightning-available__log-summary-date-ranges__r1__20260908T015529Z-2fa0a05d.yaml",
+      "config_sha256": "71289c3c9e5bce578399cdbfb423a662f9415c589ba405f4590840ee5429eca3",
+      "command": [
+        "/Users/mrwhite0racle/.local/share/uv/tools/harbor/bin/python3",
+        "/Users/mrwhite0racle/Deliberate/scripts/native_harness.py",
+        "harbor",
+        "/Users/mrwhite0racle/.local/bin/harbor",
+        "run",
+        "-c",
+        "/Users/mrwhite0racle/Deliberate/runs/tb2-guarded/configs/terminal-bench-2__ctl-zen-lightning-available__log-summary-date-ranges__r1__20260908T015529Z-2fa0a05d.yaml",
+        "-y"
+      ],
+      "job_dir": "/Users/mrwhite0racle/Deliberate/runs/tb2-guarded/terminal-bench-2__ctl-zen-lightning-available__log-summary-date-ranges__r1__20260908T015529Z-2fa0a05d",
+      "injected_session_id": null,
+      "exec_guard": {
+        "policy_digest": "9c5ffe3304d8c97db60fcd7dc4b025d1e29919c5a741106f42c9366ef05b08b0",
+        "target_digest": "851d3aeeca959bdcaffbc35e465f778ebdf05925e06d594b0eefc776fa9c13e3",
+        "event_log": "/Users/mrwhite0racle/Deliberate/runs/tb2-guarded/terminal-bench-2__ctl-zen-lightning-available__log-summary-date-ranges__r1__20260908T015529Z-2fa0a05d/native-harness-events.jsonl",
+        "breach_log": "/Users/mrwhite0racle/Deliberate/runs/tb2-guarded/terminal-bench-2__ctl-zen-lightning-available__log-summary-date-ranges__r1__20260908T015529Z-2fa0a05d/native-harness-breaches.jsonl",
+        "installed": true,
+        "ready": true,
+        "contained_execs": 0,
+        "containment_elapsed_sec": [],
+        "unsupported": [],
+        "breaches": []
+      },
+      "trace_before": {
+        "path": "/Users/mrwhite0racle/Deliberate/runs/research.jsonl",
+        "exists": true,
+        "bytes": 2082608,
+        "lines": 1265,
+        "sha256": "616cc20ac7320d7dbdd247dfab251a0a44d1f4fce9fc8514408d72567619993b"
+      },
+      "started_at": "2026-09-08T01:55:29.138578+00:00",
+      "finished_at": "2026-09-08T01:59:59.778299+00:00",
+      "exit_code": 0,
+      "trace_after": {
+        "path": "/Users/mrwhite0racle/Deliberate/runs/research.jsonl",
+        "exists": true,
+        "bytes": 2113384,
+        "lines": 1283,
+        "sha256": "e3d64fbf1a480d2ab7dc37ddd0c9a7ae044df14c546527c25b1315541feb09ac"
+      },
+      "trials_found": 1
+    }
+  ],
+  "trials": [
+    {
+      "order": 7,
+      "trial_key": "terminal-bench-2/ctl/zen-lightning-available/log-summary-date-ranges/r1",
+      "condition": "ctl/zen-lightning-available",
+      "family": "zen-lightning-available",
+      "mode": "ctl",
+      "task": "log-summary-date-ranges",
+      "repeat": 1,
+      "tag": "pilot",
+      "trial_name": "log-summary-date-ranges__rasorLF",
+      "trial_dir": "/Users/mrwhite0racle/Deliberate/runs/tb2-guarded/terminal-bench-2__ctl-zen-lightning-available__log-summary-date-ranges__r1__20260908T015529Z-2fa0a05d/log-summary-date-ranges__rasorLF",
+      "result_json": "/Users/mrwhite0racle/Deliberate/runs/tb2-guarded/terminal-bench-2__ctl-zen-lightning-available__log-summary-date-ranges__r1__20260908T015529Z-2fa0a05d/log-summary-date-ranges__rasorLF/result.json",
+      "trial_id": "cda5ddda-466e-4014-8a8d-5505b30eda16",
+      "task_checksum": "f661ef345f023ef5a2dcdd056c353a1a2bbce29a70b04765c615c25e91b6b662",
+      "harness_model_name": "hosted_vllm/ctl/zen-lightning-available",
+      "condition_from_harness": "ctl/zen-lightning-available",
+      "rewards": {
+        "reward": 1.0
+      },
+      "exception_type": null,
+      "exception_message": null,
+      "n_agent_steps": null,
+      "agent_usage": {
+        "n_input_tokens": 45506,
+        "n_output_tokens": 2714,
+        "cost_usd": 0.0
+      },
+      "started_at": "2026-09-08T01:55:30.299876Z",
+      "finished_at": "2026-09-08T01:59:57.646187Z",
+      "agent_execution": {
+        "started_at": "2026-09-08T01:58:02.627936Z",
+        "finished_at": "2026-09-08T01:59:43.780135Z"
+      },
+      "artifacts": {
+        "ctrf.json": "/Users/mrwhite0racle/Deliberate/runs/tb2-guarded/terminal-bench-2__ctl-zen-lightning-available__log-summary-date-ranges__r1__20260908T015529Z-2fa0a05d/log-summary-date-ranges__rasorLF/verifier/ctrf.json",
+        "trajectory.json": "/Users/mrwhite0racle/Deliberate/runs/tb2-guarded/terminal-bench-2__ctl-zen-lightning-available__log-summary-date-ranges__r1__20260908T015529Z-2fa0a05d/log-summary-date-ranges__rasorLF/agent/trajectory.json"
+      },
+      "status": "scored",
+      "job_name": "terminal-bench-2__ctl-zen-lightning-available__log-summary-date-ranges__r1__20260908T015529Z-2fa0a05d",
+      "condition_mismatch": false,
+      "session_id": "log-summary-date-ranges__rasorLF__agent"
+    }
+  ],
+  "failures": [],
+  "no_synthesis_note": "Missing results are listed above and are never zero-filled or imputed."
+}

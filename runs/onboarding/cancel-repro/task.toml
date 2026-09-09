@@ -1,0 +1,41 @@
+schema_version = "1.4"
+
+# DEVELOPMENT FIXTURE -- NOT A BENCHMARK TASK.
+#
+# This task exists to reproduce, and then prove the fix for, the Harbor Docker
+# exec cancellation leak: when the host cancels the agent phase, the process
+# tree started by `docker compose exec` inside the container keeps running and
+# stays alive through the verifier phase.
+#
+# The reward here measures HARNESS PROCESS ISOLATION, never model capability.
+# It is scored with the official `oracle` agent, which runs solution/solve.sh
+# and makes no model calls at all.
+
+[task]
+name = "deliberate-dev/cancel-repro"
+version = "0.1.0"
+description = "Development fixture: agent-phase process tree must be dead during the verifier phase, while unrelated pre-existing container processes stay alive."
+keywords = ["fixture", "development", "process-isolation", "cancellation"]
+
+[metadata]
+fixture = true
+scores = "harness-process-isolation"
+capability_task = false
+agent = "oracle"
+model_calls = 0
+
+[agent]
+# DEVELOPMENT-ONLY short deadline: the fixture needs the agent phase to end by
+# host-side cancellation, not by the solution returning. 8s is not a benchmark
+# timeout -- it is the smallest value that still lets a cold `docker compose cp`
+# + `chmod` + `exec` round trip arm the writers on a slow Docker Desktop host.
+# Stretch it with `--agent-timeout-multiplier` instead of editing this file.
+timeout_sec = 8.0
+
+[verifier]
+timeout_sec = 120.0
+
+[environment]
+build_timeout_sec = 600.0
+cpus = 1
+memory_mb = 512

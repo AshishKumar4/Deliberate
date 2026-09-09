@@ -1,0 +1,334 @@
+# ReasonProxy -- ACTIVE research roster (app.py default; benchmark condition set).
+#
+# Current transport evidence:
+#   runs/onboarding/remote-ai-contracts.json   20/20 live binding checks
+#   runs/onboarding/zen-current-contracts.json Lightning passes; MiMo quota-blocked
+# Historical endpoint/replay evidence remains in provider-contracts.json and
+# provider-replay.json. Catalogue presence is not current availability.
+#
+# No output cap and no native reasoning reduction is declared anywhere: no
+# max_tokens, no reasoning_effort, no thinking budget. Provider defaults stand
+# wherever a value was not verified.
+#
+# Two deadlines are in force and both are operational limits, not calibrated
+# bounds -- either can terminate a real, still-running generation:
+#   provider timeout_s 300  one HTTP attempt
+#   branch_timeout_s   420  whole branch call (attempt + retry/rate-gate wait)
+# An expired branch is recorded failed with reason "timeout"; under
+# min_branches 4 that makes the turn a traced degraded turn. No latency was
+# measured under benchmark conditions, so this file makes no claim about how
+# often, or whether, the deadlines are reachable by a model that is thinking.
+# No throughput, rate-limit or caching claim appears here either.
+#
+# Cost: the two Zen ids used here appear in the Zen free catalog listing
+# (provider-contracts.json zen_catalog_free_ids) and no paid Zen alias exists in
+# this file. Workers AI calls are billed in account neurons (usage.neurons in
+# the same evidence) and no free entitlement for this account was verified, so
+# this roster must not be described as free.
+#
+# Host-only environment (never inside a task container):
+#   REASONPROXY_LOCAL_BINDING_KEY=local-binding-no-cloudflare-credential
+#     Non-secret client placeholder; the loopback Worker does not consume it.
+#   OPENCODE_API_KEY                             -> provider zen
+#   REASONPROXY_API_KEY (optional)               -> bearer gate on /v1/*
+# Start the local AI binding with: wrangler dev -c workers/ai/wrangler.jsonc
+# Unset CLOUDFLARE_API_TOKEN/CF_API_TOKEN and API_KEY/EMAIL equivalents in that
+# process so Wrangler uses and renews its existing OAuth login.
+#
+# Fifteen aliases in two groups that are never pooled.
+#
+# (1) The nine preregistered benchmark aliases: three acting agents x three
+# arms. Corresponding arms share one controller backend verbatim, so within a
+# family the only difference is reason_mode:
+#   ctl/*   reason_mode "off"   raw model over the same proxy path: no prompt
+#                               injection, no interception, no sanitization.
+#   noop/*  reason_mode noop    same controller, same controller_prompt, same
+#                               advertised reason tool and the same loop bound,
+#                               but a fixed neutral no-deliberation result and
+#                               no workers. Isolates prompt+tool presence.
+#   rp/*    reason_mode live    four same-agent continuations -> MiMo reducer.
+#
+# (2) The six *-available aliases: ctl/noop/rp x cf-super-available and
+# zen-lightning-available. Separately named preregistered condition identities,
+# added because mimo-v2.5-free answers 429 FreeUsageLimitError with no
+# Retry-After across deferred probes while nemotron-3.5-lightning-free and
+# @cf/nvidia/nemotron-3-120b-a12b answered 200. Their rp/* arms run 2 CF Super
+# + 2 Zen Lightning continuations under a CF Super reducer: an
+# availability-defined 2-model, single-family (both Nemotron) system. This is
+# NOT a heterogeneous-family condition, NOT a runtime fallback and NOT a
+# relabeling of the MiMo-blocked aliases. The nine aliases in group 1 are
+# unchanged, and no result may be pooled or inferred across the two groups.
+#
+# reason_mode is quoted: PyYAML is YAML 1.1, where bare `off` is boolean false.
+
+providers:
+  cf:
+    # Local workerd forwards to a remote AI binding, authenticated by Wrangler.
+    # No manually copied Cloudflare access token and no AI Gateway are used.
+    base_url: http://127.0.0.1:8787/v1
+    api_key_env: REASONPROXY_LOCAL_BINDING_KEY
+    max_attempts: 8
+    # Per HTTP attempt. May cut off a generation that is still running.
+    timeout_s: 300
+  zen:
+    base_url: https://opencode.ai/zen/v1
+    api_key_env: OPENCODE_API_KEY
+    max_attempts: 8
+    timeout_s: 300
+
+backends:
+  # ---------------------------------------------------------------- controllers
+  # One per acting agent, shared verbatim by that family's ctl/noop/rp aliases.
+  # temperature is the only declared parameter and acts as a default only: a
+  # caller that sends its own sampling parameters (mini-swe-agent does) wins,
+  # because caller parameters take precedence over backend params.
+  #
+  # parallel_tool_calls is caller-controlled; the actual live request shape
+  # passed the checks above. The engine never executes real tools alongside
+  # a selected private reason call.
+  ctrl-cf-super:
+    provider: cf
+    model: "@cf/nvidia/nemotron-3-120b-a12b"   # Nemotron 3 Super, open weights
+    params: {temperature: 0.0}
+  ctrl-zen-lightning:
+    provider: zen
+    model: nemotron-3.5-lightning-free         # open weights (models.dev)
+    params: {temperature: 0.0}
+  ctrl-zen-mimo:
+    provider: zen
+    model: mimo-v2.5-free                      # open weights (models.dev)
+    params: {temperature: 0.0}
+
+  # ------------------------------------------------- branches (group 1 rp/*)
+  # The group-1 branch roster, used by all three of rp/cf-super,
+  # rp/zen-lightning and rp/zen-mimo so the ensemble is held fixed while the
+  # acting agent varies: three models in two families over two independent
+  # providers, four continuations. (The *-available aliases use their own
+  # roster, below.)
+  #
+  #   br-cf-super       @cf/nvidia/nemotron-3-120b-a12b  Nemotron  CF   t=0.7
+  #   br-zen-lightning  nemotron-3.5-lightning-free      Nemotron  Zen  t=0.7
+  #   br-zen-mimo-a     mimo-v2.5-free                   MiMo      Zen  t=0.7
+  #   br-zen-mimo-b     mimo-v2.5-free                   MiMo      Zen  t=1.0
+  #
+  # Super and Lightning are both Nemotron, so the roster is 3 models / 2
+  # families -- two samples per family, not three families.
+  #
+  # The fourth slot is a second MiMo sample at a different temperature. That is
+  # a declared condition choice, not an evidence ranking: native tool calling,
+  # history replay and json_object output are live-verified for all three
+  # models. Widening the sampled distribution comes from these backend params
+  # only, since caller sampling parameters reach the controller call alone.
+  #
+  # Declared confounds of this roster: rp/cf-super and rp/zen-lightning each
+  # face a branch running their own controller model, rp/zen-mimo faces two,
+  # and the reducer is MiMo as well (see below). configs/cloudflare.yaml holds
+  # a separate exploratory CF-only system; it is NOT a matched or
+  # diversity-isolated control for these aliases (different provider set,
+  # different models and a different reducer).
+  br-cf-super:
+    provider: cf
+    model: "@cf/nvidia/nemotron-3-120b-a12b"
+    params: {temperature: 0.7}
+  br-zen-lightning:
+    provider: zen
+    model: nemotron-3.5-lightning-free
+    params: {temperature: 0.7}
+  br-zen-mimo-a:
+    provider: zen
+    model: mimo-v2.5-free
+    params: {temperature: 0.7}
+  br-zen-mimo-b:
+    provider: zen
+    model: mimo-v2.5-free
+    params: {temperature: 1.0}
+
+  # ------------------------------------------- availability-amendment branches
+  # Used only by the *-available aliases: the hot samples that complete a
+  # 2 CF Super + 2 Zen Lightning roster at temperatures 0.7 and 1.0 for each
+  # model (br-cf-super and br-zen-lightning above are the 0.7 samples). Both
+  # models are Nemotron, so that ensemble is single-family by construction.
+  # Both are live-verified for native tool call, history replay and
+  # json_object output.
+  br-cf-super-hot:
+    provider: cf
+    model: "@cf/nvidia/nemotron-3-120b-a12b"
+    params: {temperature: 1.0}
+  br-zen-lightning-hot:
+    provider: zen
+    model: nemotron-3.5-lightning-free
+    params: {temperature: 1.0}
+
+  # ------------------------------------------------------------------- reducers
+  # The information bottleneck, and serial after the slowest branch. The engine
+  # sets response_format={"type": "json_object"} on the reducer call itself, so
+  # it must NOT be declared here. json_object output is live-verified for all
+  # three roster models, so MiMo is the declared group-1 choice, not the only
+  # option. temperature 0.0 makes the collapse as reproducible as the provider
+  # allows.
+  #
+  # MiMo also runs two of the four group-1 branches, so reducer in-set
+  # self-preference is a real confound there. Recorded, not hidden.
+  red-zen-mimo:
+    provider: zen
+    model: mimo-v2.5-free
+    params: {temperature: 0.0}
+
+  # Reducer for the *-available aliases: MiMo is unreachable while it returns
+  # 429 FreeUsageLimitError, and CF Super's json_object output is live-verified
+  # (provider-replay.json). Super also runs two of that group's four branches,
+  # and is the controller of rp/cf-super-available, so reducer in-set
+  # self-preference is a declared confound there as well.
+  red-cf-super:
+    provider: cf
+    model: "@cf/nvidia/nemotron-3-120b-a12b"
+    params: {temperature: 0.0}
+
+  # max_concurrent is left at the schema default (4) for every backend. Rate
+  # gates are shared per (provider, model) and take the minimum across aliases,
+  # so the four mimo-v2.5-free aliases (controller, two branches, reducer)
+  # share one limit of 4, as do the four @cf/nvidia/nemotron-3-120b-a12b
+  # aliases (controller, two branches, reducer); a live turn issues at most two
+  # branch calls of any one model at once with one benchmark task running.
+  # Raising a limit would require raising it on every alias of that model,
+  # since the minimum wins. rpm is omitted everywhere because no documented
+  # per-model rate limit was verified for either endpoint. Upstream retries
+  # 429s with backoff, which does not clear a FreeUsageLimitError quota
+  # rejection.
+
+virtual_models:
+  # ===================================================== Nemotron 3 Super (CF)
+  ctl/cf-super:
+    controller: ctrl-cf-super
+    reason_mode: "off"
+  noop/cf-super:
+    controller: ctrl-cf-super
+    reason_mode: noop
+    controller_prompt: concise
+    max_reason_calls: 2
+  rp/cf-super:
+    controller: ctrl-cf-super
+    reason_mode: live
+    controller_prompt: concise
+    branches: [br-cf-super, br-zen-lightning, br-zen-mimo-a, br-zen-mimo-b]
+    reducer: red-zen-mimo
+    # Hard quorum: all four continuations must come back complete and usable.
+    # Anything less is an explicitly degraded turn in the trace, never a
+    # quietly smaller ensemble and never a substituted model.
+    min_branches: 4
+    # Safety bound on the reason loop, not a budget: the final iteration is
+    # offered no reason tool, so the controller must emit a visible action.
+    # Two lets it deliberate again after integrating the first checkpoint.
+    max_reason_calls: 2
+    # Envelope for the WHOLE branch call, not one attempt: provider timeout_s
+    # (300s) cuts a single attempt first, and this also covers 429 retry
+    # backoff and rate-gate wait. It is an operational deadline -- on expiry
+    # the branch is failed "timeout" and the turn is traced degraded, which can
+    # happen to a branch that was still legitimately generating.
+    branch_timeout_s: 420
+    # Native mini-swe-agent replays assistant content verbatim, so the
+    # checkpoint survives as an ordinary assistant <deliberation> block. A
+    # caller that requests strict JSON output is handled by the engine.
+    persistence: assistant_tags
+
+  # ================================================= Nemotron 3.5 Lightning (Zen)
+  ctl/zen-lightning:
+    controller: ctrl-zen-lightning
+    reason_mode: "off"
+  noop/zen-lightning:
+    controller: ctrl-zen-lightning
+    reason_mode: noop
+    controller_prompt: concise
+    max_reason_calls: 2
+  rp/zen-lightning:
+    controller: ctrl-zen-lightning
+    reason_mode: live
+    controller_prompt: concise
+    branches: [br-cf-super, br-zen-lightning, br-zen-mimo-a, br-zen-mimo-b]
+    reducer: red-zen-mimo
+    min_branches: 4
+    max_reason_calls: 2
+    branch_timeout_s: 420
+    persistence: assistant_tags
+
+  # ============================================================= MiMo v2.5 (Zen)
+  ctl/zen-mimo:
+    controller: ctrl-zen-mimo
+    reason_mode: "off"
+  noop/zen-mimo:
+    controller: ctrl-zen-mimo
+    reason_mode: noop
+    controller_prompt: concise
+    max_reason_calls: 2
+  rp/zen-mimo:
+    controller: ctrl-zen-mimo
+    reason_mode: live
+    controller_prompt: concise
+    branches: [br-cf-super, br-zen-lightning, br-zen-mimo-a, br-zen-mimo-b]
+    reducer: red-zen-mimo
+    min_branches: 4
+    max_reason_calls: 2
+    branch_timeout_s: 420
+    persistence: assistant_tags
+
+  # ============ availability amendment: 2-model, Nemotron-only ensemble ======
+  # Group 2 from the header. Controller backend, controller_prompt and the
+  # loop/quorum/timeout bounds are identical to the corresponding group-1
+  # family, so ctl -> noop -> rp stays parameter-matched inside this group; the
+  # branch roster and the reducer (red-cf-super, not red-zen-mimo) are what
+  # differ from that family's rp/*, so rp/*-available and rp/* are not two
+  # points on one axis.
+  #
+  # ctl/*-available and noop/*-available are definitionally the same arms as
+  # the corresponding ctl/* and noop/*: same controller backend, same mode,
+  # same controller_prompt and loop bound. They exist as their own aliases
+  # because the runner pairs ctl/noop/rp by exact suffix, and their trials
+  # belong to this group's records only -- they are not evidence about group 1.
+  ctl/cf-super-available:
+    controller: ctrl-cf-super
+    reason_mode: "off"
+  noop/cf-super-available:
+    controller: ctrl-cf-super
+    reason_mode: noop
+    controller_prompt: concise
+    max_reason_calls: 2
+  rp/cf-super-available:
+    controller: ctrl-cf-super
+    reason_mode: live
+    controller_prompt: concise
+    # 2 CF Super + 2 Zen Lightning; temperatures 0.7 and 1.0 per model.
+    branches: [br-cf-super, br-cf-super-hot, br-zen-lightning, br-zen-lightning-hot]
+    reducer: red-cf-super
+    min_branches: 4
+    max_reason_calls: 2
+    branch_timeout_s: 420
+    persistence: assistant_tags
+
+  ctl/zen-lightning-available:
+    controller: ctrl-zen-lightning
+    reason_mode: "off"
+  noop/zen-lightning-available:
+    controller: ctrl-zen-lightning
+    reason_mode: noop
+    controller_prompt: concise
+    max_reason_calls: 2
+  rp/zen-lightning-available:
+    controller: ctrl-zen-lightning
+    reason_mode: live
+    controller_prompt: concise
+    branches: [br-cf-super, br-cf-super-hot, br-zen-lightning, br-zen-lightning-hot]
+    reducer: red-cf-super
+    min_branches: 4
+    max_reason_calls: 2
+    branch_timeout_s: 420
+    persistence: assistant_tags
+
+# Single append-only trace file; the benchmark runner records byte offset and
+# digest around every job so trial -> trace joins stay auditable.
+trace_path: runs/research.jsonl
+# Model-authored text (branch continuations, checkpoint bodies) is NOT captured:
+# the trace keeps structural fields only. This matches the schema default and is
+# stated explicitly here. If completed-checkpoint text is needed for trajectory
+# analysis, turn it on as an explicit, recorded run option for that run rather
+# than capturing raw branch text by default.
+trace_texts: false

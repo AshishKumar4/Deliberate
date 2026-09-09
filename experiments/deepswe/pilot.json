@@ -1,0 +1,208 @@
+{
+  "schema": "reasonproxy.predeclaration/1",
+  "suite": "deepswe",
+  "runner": "pier",
+  "predeclared_utc": "2026-09-06",
+  "predeclared_before_any_model_outcome": true,
+  "purpose": "Paired, pre-registered pilot of ReasonProxy deliberation against the same frozen controller run natively, under the official DeepSWE harness. Exploratory: this is not a benchmark score and not a frontier comparison.",
+  "dataset": {
+    "name": "DeepSWE v1.1",
+    "repository": "https://github.com/datacurve-ai/deep-swe",
+    "commit": "0b9fabbb63b9104d678fe965e1632f2dd9eaa2ea",
+    "clone_path": "~/.cache/reasonproxy/deep-swe",
+    "tasks_subdir": "tasks",
+    "pool_size": 113,
+    "pool_after_reservation": 112,
+    "selection_rule": "Per language, sort the reservation-filtered task ids lexicographically, shuffle with random.Random(0), take quota {typescript: 3, go: 3, python: 3, javascript: 1}. Sorted input makes the draw independent of filesystem dirent order, unlike Pier's own --sample-seed path (DatasetConfig._filter_task_ids shuffles Path.iterdir() output).",
+    "selection_is_explicit_not_seeded": true,
+    "selection_note": "The authoritative artifact is the explicit task_names list below. The seed is provenance only; it is not replayed at run time.",
+    "reserved_tasks": {
+      "ytt-jsonpath-query-api": "conformance/dev task. Oracle-verified (reward 1, f2p 103/103, p2p 1/1) as infrastructure proof. Excluded from every pilot metric; usable only via `run --conformance`."
+    }
+  },
+  "tasks": [
+    {"id": "dynamodb-toolbox-lazy-recursive-schemas", "language": "typescript"},
+    {"id": "arktype-json-schema-refs-dependencies", "language": "typescript"},
+    {"id": "query-persist-restored-query-state", "language": "typescript"},
+    {"id": "etree-xml-diff-patch", "language": "go"},
+    {"id": "opa-template-string-reconstruction", "language": "go"},
+    {"id": "pebble-durability-wait-apis", "language": "go"},
+    {"id": "fastapi-deprecation-response-headers", "language": "python"},
+    {"id": "adaptix-name-mapping-aliases", "language": "python"},
+    {"id": "skrub-duration-encoding", "language": "python"},
+    {"id": "testem-bail-on-test-failure", "language": "javascript"}
+  ],
+  "language_quota": {"typescript": 3, "go": 3, "python": 3, "javascript": 1},
+  "no_subgroup_claims_for": ["javascript", "rust"],
+  "pre_outcome_axes": ["language", "instruction length"],
+  "pre_outcome_axes_note": "All 113 DeepSWE tasks declare identical cpus/memory/storage/timeouts/network/verifier mode, so no resource-based stratification exists. Any resource-based filter would be post-hoc.",
+  "availability_amendment": "2026-09-07, before any held-out model outcome: MiMo returns HTTP429 FreeUsageLimitError with no retry-after; CF Super and Zen Lightning remain available. Added explicitly named two-model/one-family conditions, never substituted into the original three-model conditions. Original frozen manifests retained.",
+  "metric_classification_amendment": "2026-09-07, before any held-out model outcome exists: account-level free-tier quota exhaustion is split out of operational_failure_counted_as_reward_0 into its own class, outcome_adjudication.provider_quota_exhausted, which is blocked and unscored rather than charged as reward 0. Recorded before any outcome, with the pre-outcome reason: a free-tier account quota is spent by cumulative prior consumption, and under the frozen mode order (ctl, rp, noop) with an rp turn issuing ~6 upstream calls against ctl's 1, exhaustion lands on the later modes by construction, so charging it would measure execution order rather than the condition. ApiRateLimitError and every other transient provider failure remain charged as reward 0. No task list, condition list, contrast, execution order or primary metric is changed by this amendment.",
+  "conditions": [
+    {"alias": "ctl/zen-lightning-available", "family": "zen-lightning-available", "mode": "ctl", "reason_mode": "off", "arm": "availability amendment: unchanged Lightning native baseline"},
+    {"alias": "rp/zen-lightning-available", "family": "zen-lightning-available", "mode": "rp", "reason_mode": "live", "arm": "availability amendment: 2 Super + 2 Lightning branches, Super reducer; one model family"},
+    {"alias": "noop/zen-lightning-available", "family": "zen-lightning-available", "mode": "noop", "reason_mode": "noop", "arm": "availability amendment: prompt-matched noop"},
+    {"alias": "ctl/cf-super-available", "family": "cf-super-available", "mode": "ctl", "reason_mode": "off", "arm": "availability amendment: unchanged Super native baseline"},
+    {"alias": "rp/cf-super-available", "family": "cf-super-available", "mode": "rp", "reason_mode": "live", "arm": "availability amendment: 2 Super + 2 Lightning branches, Super reducer; one model family"},
+    {"alias": "noop/cf-super-available", "family": "cf-super-available", "mode": "noop", "reason_mode": "noop", "arm": "availability amendment: prompt-matched noop"},
+    {"alias": "ctl/zen-lightning", "family": "zen-lightning", "mode": "ctl", "reason_mode": "off", "arm": "native-default serial baseline: no tool injection, no interception"},
+    {"alias": "rp/zen-lightning", "family": "zen-lightning", "mode": "rp", "reason_mode": "live", "arm": "treatment: private zero-arg reason tool, 4 branches + reducer"},
+    {"alias": "noop/zen-lightning", "family": "zen-lightning", "mode": "noop", "reason_mode": "noop", "arm": "no-op arm: identical advertised prompt/tool, fixed neutral result, no workers"},
+    {"alias": "ctl/zen-mimo", "family": "zen-mimo", "mode": "ctl", "reason_mode": "off", "arm": "native-default serial baseline"},
+    {"alias": "rp/zen-mimo", "family": "zen-mimo", "mode": "rp", "reason_mode": "live", "arm": "treatment"},
+    {"alias": "noop/zen-mimo", "family": "zen-mimo", "mode": "noop", "reason_mode": "noop", "arm": "no-op arm"},
+    {"alias": "ctl/cf-super", "family": "cf-super", "mode": "ctl", "reason_mode": "off", "arm": "native-default serial baseline"},
+    {"alias": "rp/cf-super", "family": "cf-super", "mode": "rp", "reason_mode": "live", "arm": "treatment"},
+    {"alias": "noop/cf-super", "family": "cf-super", "mode": "noop", "reason_mode": "noop", "arm": "no-op arm"}
+  ],
+  "contrasts": [
+    {"id": "rp_vs_ctl", "treatment_mode": "rp", "reference_mode": "ctl", "primary": true, "reads": "effect of live deliberation over the same frozen controller run natively"},
+    {"id": "rp_vs_noop", "treatment_mode": "rp", "reference_mode": "noop", "primary": false, "reads": "effect of deliberation content, holding the injected prompt/tool surface constant"},
+    {"id": "noop_vs_ctl", "treatment_mode": "noop", "reference_mode": "ctl", "primary": false, "reads": "effect of the injected prompt/tool surface alone (schema perturbation control)"}
+  ],
+  "execution_order": {
+    "family_order": ["zen-lightning-available", "cf-super-available", "zen-lightning", "zen-mimo", "cf-super"],
+    "task_order": "as listed in `tasks`",
+    "mode_order": ["ctl", "rp", "noop"],
+    "nesting": "family -> task -> mode",
+    "rationale": "Modes are adjacent within a task so any truncated execution still yields complete paired triples. cf-super runs last because its Cloudflare credential window is the shortest; a credential refresh must not straddle a family.",
+    "subset_rule": "Subsets must be a prefix of this fixed order or an explicit condition/task/repeat filter named before execution. Outcome-dependent staging, adaptive repeats and early stopping are prohibited."
+  },
+  "trials_per_task_condition": 1,
+  "primary_metric": {
+    "name": "official binary task reward, operational (condition-owned failures counted as 0)",
+    "source": "<trial>/verifier/reward.json key `reward` (mirrored at result.json verifier_result.rewards.reward)",
+    "produced_by": "unmodified DeepSWE separate pristine verifier (verifier.environment_mode=separate, network_mode=no-network, timeout_sec=1800)",
+    "unit_of_analysis": "task",
+    "aggregation_over_repeats": "mean of per-trial values per task per condition",
+    "zero_credit_for": "agent timeout, nonzero agent exit (including private-tool protocol exhaustion), provider/proxy transport failure including transient rate limiting - see outcome_adjudication",
+    "excluded": "host/container/verifier-side infrastructure failures, account-level provider quota blocks (outcome_adjudication.provider_quota_exhausted) and unexecuted trials, each reported with counts",
+    "tests": [
+      "exact McNemar (paired, two-sided) when every paired value is 0 or 1",
+      "exact sign-flip permutation on the paired mean difference (Monte Carlo with fixed seed above 20 paired tasks)",
+      "seeded paired percentile bootstrap CI over tasks"
+    ]
+  },
+  "secondary_metrics": [
+    {"name": "f2p", "source": "reward.json f2p / f2p_passed / f2p_total", "note": "continuous, higher power than binary, reported as secondary only"},
+    {"name": "p2p", "source": "reward.json p2p / p2p_passed / p2p_total", "note": "regression guard"},
+    {"name": "partial", "source": "reward.json partial"},
+    {"name": "n_agent_steps", "source": "trial result.json n_agent_steps", "note": "mechanism, never a primary outcome"},
+    {"name": "proxy deliberation telemetry", "source": "ReasonProxy trace JSONL joined by virtual_model and agent-execution time window", "fields": ["reason_calls", "checkpoints[].reduced", "degraded", "degradations", "protocol_violations", "usage", "outcome", "stage", "detail"]}
+  ],
+  "harness": {
+    "pier_version": "0.3.1",
+    "mini_swe_agent_version_in_sandbox": "2.4.6",
+    "mini_swe_agent_pin_mechanism": "Pier agent kwarg `version` -> `uv tool install mini-swe-agent==2.4.6` inside the sandbox",
+    "model_name_template": "hosted_vllm/<alias>",
+    "model_adapter_note": "The hosted_vllm/ prefix keeps mini-swe's LitellmModel and therefore native function calling (BASH_TOOL). An openai/ prefix would select the Responses adapter and is prohibited.",
+    "proxy_endpoint": "http://host.docker.internal:8100/v1",
+    "agent_phase_allowlist": ["host.docker.internal"],
+    "allowlist_derivation": "Pier reads model.model_kwargs.api_base out of the mini-swe config_yaml (agents/network.py collect_url_values -> allowlist_from_urls), promoting the agent phase from no-network to a hostname-only allowlist. The verifier phase stays no-network.",
+    "agent_step_limit": 250,
+    "agent_step_limit_source": "mini-swe-agent config/benchmarks/swebench.yaml agent.step_limit",
+    "cost_limit": "disabled: mini-swe agent.cost_limit=0 plus MSWEA_COST_TRACKING=ignore_errors (free endpoints report cost 0.0, which would otherwise raise)",
+    "added_wall_clock_cap": "none",
+    "official_limits_unchanged": {"agent_timeout_sec": 10800.0, "verifier_timeout_sec": 1800.0, "environment_build_timeout_sec": 1800.0, "cpus": 2, "memory_mb": 8192, "storage_mb": 20480},
+    "timeout_multiplier": 1.0,
+    "n_concurrent_trials": 1,
+    "n_concurrent_rationale": "The Docker VM has ~7.65 GiB total while every DeepSWE task declares memory_mb 8192; concurrent trials would risk OOM kills scored as task failures.",
+    "retries": 0,
+    "harness_modifications": "Installed Pier and mini-swe-agent packages unchanged; repo-local scripts/native_harness.py bootstrap applies a recorded Docker exec cancellation guard before launching the original CLI. Policy, bootstrap and installed target hashes are frozen."
+  },
+  "outcome_adjudication": {
+    "graded": "the official verifier produced rewards -> use the reported values verbatim. A graded reward of 0 is a failure of the condition, whatever the proxy did internally: degraded deliberation, an unvalidated checkpoint or a skipped reason call never converts a graded 0 into an exclusion.",
+    "operational_failure_counted_as_reward_0": {
+      "AgentTimeoutError": "the agent exceeded the official agent timeout",
+      "NonZeroAgentExitCodeError": "mini-swe-agent exited nonzero, including RepeatedFormatError from a malformed or leaked private tool call",
+      "ApiError": "provider or proxy transport failure surfaced to the agent",
+      "ApiRateLimitError": "rate limiting, which a K-way fan-out can itself cause",
+      "ApiInternalServerError": "provider 5xx during the trial",
+      "ApiOverloadedError": "provider overload during the trial",
+      "ApiConnectionClosedError": "connection dropped mid-trial",
+      "ApiConnectionError": "connection failure to the proxy endpoint",
+      "ApiResponseStalledError": "response stalled past the adapter's patience",
+      "ApiProviderResourceNotFoundError": "provider resource missing at call time",
+      "UnknownApiError": "unrecognized API-layer failure",
+      "AgentAuthenticationError": "the sandbox could not authenticate to the proxy",
+      "ModelNotFoundError": "the proxy did not serve the requested alias",
+      "NetworkConnectionError": "agent-phase egress failure",
+      "ContextWindowExceededError": "context exhausted, which deliberation persistence can itself cause",
+      "OutputTokenExceededError": "output budget exhausted"
+    },
+    "operational_failure_rationale": "These are outcomes of the system under test - controller, proxy, fan-out, persistence, endpoint - not of the host. Excluding them would flatter whichever arm fails most often, so they carry zero credit in the primary metric and are additionally reported by category. An account-level quota block is deliberately not in this set: it is a property of the account's cumulative consumption, not of the trial's condition. See provider_quota_exhausted.",
+    "provider_quota_exhausted": {
+      "handling": "Blocked and unscored. Excluded from both metrics, reported per condition with counts and the matched evidence string, and counted as a coverage gap rather than as an outcome. The declared configuration did not run, so there is nothing to score; the cell is never zero-filled and never imputed.",
+      "decided_before_the_reward_is_read": "The class is assigned from execution evidence only, never from the value the verifier would have produced, so the rule cannot become outcome-conditioned. A reward that was nevertheless produced is recorded verbatim as observed_reward_not_scored and excluded from every metric.",
+      "harness_exceptions": {
+        "ApiUsageLimitError": "the harness named a usage/quota limit itself"
+      },
+      "provider_error_markers": [
+        "FreeUsageLimitError",
+        "free usage limit",
+        "insufficient_quota",
+        "quota exceeded",
+        "quota exhausted",
+        "credit balance is too low"
+      ],
+      "evidence_sources": "The harness exception type and message, plus the provider's own error object as ReasonProxy recorded it on the trace row: top-level detail, branches[].error and degradations[].reason, each of the form 'HTTP <status> <ErrorKind>: <message>'. litellm and the native harness map an account quota rejection and an ordinary burst limit onto the same HTTP 429, so the provider's error kind is the only discriminator; it is matched against the markers above and nothing else.",
+      "not_included": "ApiRateLimitError and every transient 429, provider 5xx, overload, stall, connection or protocol failure stay in the operational set: a K-way fan-out can itself provoke those, and they are outcomes of the condition. This class removes no treatment failure that the treatment caused.",
+      "re_execution": "A quota-blocked cell may be re-executed once the quota resets, as an explicitly named run of that condition and task. Re-execution is never automatic, never outcome-dependent, and never averaged: an analysis whose execution records carry the same trial key twice is refused until the authoritative records are named explicitly.",
+      "reporting": "Quota-blocked cells are listed with condition, task and evidence, and are reported as a provider account-availability limit. They are never presented as a cognitive or capability failure of the arm, and a metric may not be printed as if those cells had been attempted."
+    },
+    "infrastructure_excluded": [
+      "AgentSetupTimeoutError", "EnvironmentStartTimeoutError", "HealthcheckError", "SandboxBuildFailedError",
+      "MemoryLimitExceededError", "VerifierTimeoutError", "RewardFileNotFoundError", "RewardFileEmptyError",
+      "VerifierOutputParseError", "AddTestsDirError", "DownloadVerifierDirError"
+    ],
+    "infrastructure_rationale": "Host, container and verifier-side failures are not attributable to any condition; they are excluded from both metrics, counted, and listed per trial for adjudication.",
+    "unclassified": "any other exception: reported explicitly, excluded from both metrics, never zero-filled",
+    "missing_or_unexecuted": "reported as missing against requested/planned/executed counts. Missing is not a zero.",
+    "no_synthesis": "Missing trial scores are never imputed, averaged in, or replaced by another condition's value."
+  },
+  "metrics_reported_side_by_side": {
+    "operational": {
+      "primary": true,
+      "definition": "graded binary reward, with operational failures counted as 0; infrastructure failures and missing trials excluded and listed",
+      "reads": "end-to-end probability that this condition solves a task through this harness"
+    },
+    "graded_only": {
+      "primary": false,
+      "definition": "binary reward over trials that reached the verifier, with no imputation",
+      "reads": "descriptive accuracy conditional on completing a trial; it is not an effect estimate and its denominator differs between arms"
+    }
+  },
+  "analysis_rules": {
+    "unit": "task",
+    "pairing": "a task enters a contrast only when both arms have a usable value for that metric",
+    "zero_fill": "prohibited",
+    "duplicate_trial_keys": "An analysis whose selected execution records contain the same trial key more than once is refused rather than averaged. A repeat may enter only as an explicitly named execution set, which the analysis artifact records.",
+    "coverage_reporting": "planned, requested, executed, graded, operational-failure, provider-quota-blocked and infrastructure-excluded counts are reported per condition, always alongside any metric, together with the named list of planned cells that carry no primary value",
+    "conditional_subsets": "Subsets conditioned on outcomes or on whether the controller invoked reason are descriptive only and may never be presented as a causal effect.",
+    "power": "10 tasks x 1 trial cannot detect any plausible effect size; simulated power for paired binary designs at this n is ~0. The pilot is declared underpowered and exploratory. Binary reward remains the declared primary metric.",
+    "floor_risk": "If the baseline arm scores 0 on every task, the paired binary contrast is uninformative by construction; report that fact rather than an effect.",
+    "prohibited_claims": [
+      "any frontier comparison, gap-closing percentage, or shared-axis plot with published leaderboard values",
+      "any causal uplift claim beyond the executed paired contrast",
+      "any statement that substitutes the public DeepSWE leaderboard for an unexecuted baseline",
+      "any 'state of the art' or 'matches/approaches frontier' phrasing",
+      "any headline metric that drops the treatment arm's own protocol, quorum or timeout failures",
+      "any headline metric that silently drops, zero-fills or averages away a provider-quota-blocked cell, or that presents a quota block as a capability result"
+    ]
+  },
+  "authorization": {
+    "paid_frontier_baseline": "BLOCKED - not authorized, not run, and not substituted with public leaderboard values",
+    "executed_model_set": "free OpenCode Zen aliases and Cloudflare Workers AI only"
+  },
+  "credentials": {
+    "policy": "Provider credentials stay on the host in the ReasonProxy process only. Task, agent and verifier environments receive no provider credential.",
+    "sandbox_credential": "a single local proxy bearer token, injected as a ${ENV} template that the harness resolves at runtime; never written into a job config, config_yaml, manifest or argv"
+  },
+  "replication": {
+    "suite": "terminal-bench-2",
+    "runner": "harbor",
+    "predeclaration": "runs/onboarding/terminal-bench-selection.json",
+    "status": "exploratory paired replication subset on an independent benchmark and harness; not a Terminal-Bench score",
+    "note": "Frozen by the same rule family before model outcomes; reserved dev task cancel-async-tasks is grader conformance only."
+  }
+}

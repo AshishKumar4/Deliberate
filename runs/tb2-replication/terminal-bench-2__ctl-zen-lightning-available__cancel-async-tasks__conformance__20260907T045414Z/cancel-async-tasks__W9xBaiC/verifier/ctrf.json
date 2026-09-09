@@ -1,0 +1,83 @@
+{
+    "results": {
+        "tool": {
+            "name": "pytest",
+            "version": "8.4.1"
+        },
+        "summary": {
+            "tests": 6,
+            "passed": 3,
+            "failed": 3,
+            "skipped": 0,
+            "pending": 0,
+            "other": 0,
+            "start": 1788757828.1927738,
+            "stop": 1788757841.3012905
+        },
+        "tests": [
+            {
+                "name": "test_outputs.py::test_run_py_file_exists",
+                "status": "passed",
+                "duration": 0.07146541699989939,
+                "start": 1788757828.3026416,
+                "stop": 1788757828.3748841,
+                "retries": 0,
+                "file_path": "test_outputs.py"
+            },
+            {
+                "name": "test_outputs.py::test_tasks_run_concurrently",
+                "status": "passed",
+                "duration": 3.8043257100000574,
+                "start": 1788757828.3754108,
+                "stop": 1788757832.185081,
+                "retries": 0,
+                "file_path": "test_outputs.py"
+            },
+            {
+                "name": "test_outputs.py::test_tasks_obey_max_concurrent",
+                "status": "passed",
+                "duration": 6.996075086000019,
+                "start": 1788757832.1856937,
+                "stop": 1788757839.1833584,
+                "retries": 0,
+                "file_path": "test_outputs.py"
+            },
+            {
+                "name": "test_outputs.py::test_tasks_cancel_below_max_concurrent",
+                "status": "failed",
+                "raw_status": "call_failed",
+                "duration": 0.6954891679998809,
+                "start": 1788757839.184283,
+                "stop": 1788757839.979925,
+                "retries": 0,
+                "file_path": "test_outputs.py",
+                "trace": "def test_tasks_cancel_below_max_concurrent():\n        \"\"\"\n        Ensure that tasks cancel when below the max concurrent.\n    \n        This will fail e.g. if the agent tries to use threading.ThreadPoolExecutor which\n        doesn't propagate the cancellation signal to the tasks.\n        \"\"\"\n        proc = subprocess.Popen(\n            [\n                \"python\",\n                \"test.py\",\n                \"--n-tasks\",\n                \"2\",\n                \"--max-concurrent\",\n                \"3\",\n            ],\n            stdout=subprocess.PIPE,\n            stderr=subprocess.PIPE,\n        )\n    \n        # Wait 500ms, then send SIGINT (KeyboardInterrupt)\n        time.sleep(0.5)\n        proc.send_signal(signal.SIGINT)\n    \n        try:\n            stdout, stderr = proc.communicate(timeout=5)\n        finally:\n            proc.kill()\n    \n        stdout = stdout.decode(\"utf-8\")\n    \n>       assert stdout.count(\"Task started.\") == 2\nE       AssertionError: assert 0 == 2\nE        +  where 0 = <built-in method count of str object at 0x7fffff719228>('Task started.')\nE        +    where <built-in method count of str object at 0x7fffff719228> = ''.count\n\n/tests/test_outputs.py:102: AssertionError",
+                "message": "The test failed in the call phase due to an assertion error"
+            },
+            {
+                "name": "test_outputs.py::test_tasks_cancel_at_max_concurrent",
+                "status": "failed",
+                "raw_status": "call_failed",
+                "duration": 0.6073919999998907,
+                "start": 1788757839.980331,
+                "stop": 1788757840.5947673,
+                "retries": 0,
+                "file_path": "test_outputs.py",
+                "trace": "def test_tasks_cancel_at_max_concurrent():\n        \"\"\"\n        Ensure tasks cancel when at the max concurrent. This should behave similar to when\n        task count is below.\n        \"\"\"\n        proc = subprocess.Popen(\n            [\n                \"python\",\n                \"test.py\",\n                \"--n-tasks\",\n                \"2\",\n                \"--max-concurrent\",\n                \"2\",\n            ],\n            stdout=subprocess.PIPE,\n            stderr=subprocess.PIPE,\n        )\n    \n        # Wait 500ms, then send SIGINT (KeyboardInterrupt)\n        time.sleep(0.5)\n        proc.send_signal(signal.SIGINT)\n    \n        try:\n            stdout, stderr = proc.communicate(timeout=5)\n        finally:\n            proc.kill()\n    \n        stdout = stdout.decode(\"utf-8\")\n    \n>       assert stdout.count(\"Task started.\") == 2\nE       AssertionError: assert 0 == 2\nE        +  where 0 = <built-in method count of str object at 0x7fffff719228>('Task started.')\nE        +    where <built-in method count of str object at 0x7fffff719228> = ''.count\n\n/tests/test_outputs.py:135: AssertionError",
+                "message": "The test failed in the call phase due to an assertion error"
+            },
+            {
+                "name": "test_outputs.py::test_tasks_cancel_above_max_concurrent",
+                "status": "failed",
+                "raw_status": "call_failed",
+                "duration": 0.6907200840000769,
+                "start": 1788757840.5951302,
+                "stop": 1788757841.293455,
+                "retries": 0,
+                "file_path": "test_outputs.py",
+                "trace": "def test_tasks_cancel_above_max_concurrent():\n        \"\"\"\n        Test that cancellation occurs and only the first two tasks are started and\n        cancelled.\n    \n        This is a common gotcha in Python because asyncio.gather doesn't properly cancel\n        existing tasks if there are still tasks in the queue.\n        \"\"\"\n        proc = subprocess.Popen(\n            [\n                \"python\",\n                \"test.py\",\n                \"--n-tasks\",\n                \"3\",\n                \"--max-concurrent\",\n                \"2\",\n            ],\n            stdout=subprocess.PIPE,\n            stderr=subprocess.PIPE,\n        )\n    \n        # Wait 500ms, then send SIGINT (KeyboardInterrupt)\n        time.sleep(0.5)\n        proc.send_signal(signal.SIGINT)\n    \n        try:\n            stdout, stderr = proc.communicate(timeout=5)\n        finally:\n            proc.kill()\n    \n        stdout = stdout.decode(\"utf-8\")\n    \n>       assert stdout.count(\"Task started.\") == 2\nE       AssertionError: assert 0 == 2\nE        +  where 0 = <built-in method count of str object at 0x7fffff719228>('Task started.')\nE        +    where <built-in method count of str object at 0x7fffff719228> = ''.count\n\n/tests/test_outputs.py:171: AssertionError",
+                "message": "The test failed in the call phase due to an assertion error"
+            }
+        ]
+    }
+}
