@@ -323,6 +323,34 @@ virtual_models:
     branch_timeout_s: 420
     persistence: assistant_tags
 
+  # ============ directed deliberation: proxy-appended user instruction =======
+  # Treatment arms for the benchmark pilot. Identical to the *-available rp
+  # arms except controller_prompt deliberate-directed, which additionally
+  # appends the measured user directive (directive-nudge-v1) transiently per
+  # request. The harness files are untouched; the directive is proxy-side and
+  # recorded in trace prompt_revisions. Never pooled with v2 rp/*-available:
+  # the model-visible conversation differs by construction.
+  rp/cf-super-directed:
+    controller: ctrl-cf-super
+    reason_mode: live
+    controller_prompt: deliberate-directed
+    branches: [br-cf-super, br-cf-super-hot, br-zen-lightning, br-zen-lightning-hot]
+    reducer: red-cf-super
+    min_branches: 4
+    max_reason_calls: 2
+    branch_timeout_s: 420
+    persistence: assistant_tags
+  rp/zen-lightning-directed:
+    controller: ctrl-zen-lightning
+    reason_mode: live
+    controller_prompt: deliberate-directed
+    branches: [br-cf-super, br-cf-super-hot, br-zen-lightning, br-zen-lightning-hot]
+    reducer: red-cf-super
+    min_branches: 4
+    max_reason_calls: 2
+    branch_timeout_s: 420
+    persistence: assistant_tags
+
 # Single append-only trace file; the benchmark runner records byte offset and
 # digest around every job so trial -> trace joins stay auditable.
 trace_path: runs/research.jsonl

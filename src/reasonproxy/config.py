@@ -95,7 +95,8 @@ class VirtualModel(BaseModel):
     branch_prompt: Literal["same_agent", "roles"] = "same_agent"
     branch_roles: list[str] = Field(default_factory=list)
     controller_prompt: Literal[
-        "neutral", "outsourcing", "concise", "concise-outsourcing", "deliberate", "deliberate-focus"
+        "neutral", "outsourcing", "concise", "concise-outsourcing", "deliberate", "deliberate-focus",
+        "deliberate-directed",
     ] = "concise"
     persistence: Literal["auto", "assistant_tags", "ephemeral"] = "auto"
     # Loop bound, not a budget: the last iteration has no reason tool, so the

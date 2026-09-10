@@ -482,11 +482,13 @@ def _borrowed_from_pilot() -> tuple[dict[str, Any], dict[str, Any]]:
     }
 
 
-def load_predeclaration(suite: str) -> Predeclaration:
+def load_predeclaration(suite: str, override: str | None = None) -> Predeclaration:
     if suite not in SUITES:
         raise SystemExit(f"unknown suite {suite!r}; choose from {sorted(SUITES)}")
     wiring = SUITES[suite]
-    path = REPO / wiring["predeclaration"]
+    path = Path(override) if override else REPO / wiring["predeclaration"]
+    if not path.is_absolute():
+        path = REPO / path
     if not path.exists():
         raise SystemExit(f"predeclaration missing: {path}")
     return Predeclaration(suite, wiring, json.loads(path.read_text()), path)
@@ -700,7 +702,7 @@ def build_plan(pre: Predeclaration, tasks: list[str], repeats: int, tag: str) ->
 
 
 def cmd_freeze(args: argparse.Namespace) -> int:
-    pre = load_predeclaration(args.suite)
+    pre = load_predeclaration(args.suite, args.predeclaration)
     problems: list[str] = []
 
     pins_doc = load_pins()
@@ -2544,6 +2546,7 @@ def build_parser() -> argparse.ArgumentParser:
     freeze = sub.add_parser("freeze", help="resolve a predeclaration into an immutable manifest")
     freeze.add_argument("--suite", default="deepswe", choices=sorted(SUITES))
     freeze.add_argument("--roster", default="configs/research.yaml")
+    freeze.add_argument("--predeclaration", default=None)
     freeze.add_argument("--proxy-url", default="http://host.docker.internal:8100/v1")
     freeze.add_argument("--step-limit", type=int, default=250)
     freeze.add_argument("--out")

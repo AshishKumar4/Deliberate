@@ -120,6 +120,17 @@ def focus_suffix(focus: str) -> str:
     )
 
 
+# v1 per-request user directive: the exact instruction the compliance
+# diagnostic measured (15/20 uptake). Appended as a user message per request,
+# never baked into harness files, recorded in trace revisions. Additive.
+DIRECTIVE_NUDGE_V1 = (
+    "Before your next action, first call `deliberate` alone (with a focus "
+    "question about your current decision, or with no argument) and use the "
+    "returned checkpoint to decide your next move. Then act."
+)
+
+DIRECTIVE_NUDGE_ID = "directive-nudge-v1"
+
 # --------------------------------------------------------------------------- #
 # controller instructions
 # --------------------------------------------------------------------------- #
@@ -214,6 +225,7 @@ CONTROLLER_PROMPTS = {
     ),
     "deliberate": ("controller-deliberate-v3", CONTROLLER_DELIBERATE_V3),
     "deliberate-focus": ("controller-deliberate-focus-v4", CONTROLLER_DELIBERATE_FOCUS_V4),
+    "deliberate-directed": ("controller-deliberate-focus-v4", CONTROLLER_DELIBERATE_FOCUS_V4),
 }
 
 NOT_EXECUTED_DELIBERATE_RESULT = (
@@ -320,7 +332,7 @@ def wire_for(controller: str) -> dict[str, object]:
     question. The engine resolves this per virtual model so v2 conditions run
     byte-identical while newer conditions deliberate under the intuitive name.
     """
-    if controller == "deliberate-focus":
+    if controller in ("deliberate-focus", "deliberate-directed"):
         return {
             "wire_name": DELIBERATE_WIRE_NAME,
             "tool": DELIBERATE_FOCUS_TOOL,
@@ -329,6 +341,9 @@ def wire_for(controller: str) -> dict[str, object]:
             "withdrawn_id": REASON_WITHDRAWN_DELIBERATE_ID,
             "not_executed": NOT_EXECUTED_DELIBERATE_RESULT,
             "args": "focus-optional",
+            "directive": (DIRECTIVE_NUDGE_ID, DIRECTIVE_NUDGE_V1)
+            if controller == "deliberate-directed"
+            else None,
         }
     if controller == "deliberate":
         return {
@@ -416,6 +431,9 @@ def revisions(
             wire["tool_id"], json.dumps(wire["tool"], sort_keys=True)
         )
         out["reason_withdrawn"] = _rev(wire["withdrawn_id"], wire["withdrawn_notice"])
+        if wire.get("directive"):
+            directive_id, directive_text = wire["directive"]
+            out["directive"] = _rev(directive_id, directive_text)
     if branch:
         out["branch"] = _rev(BRANCH_PROMPT_ID, BRANCH_SAME_AGENT_V2)
     if reducer:

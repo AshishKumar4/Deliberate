@@ -79,6 +79,14 @@ CONFIG = {
             "max_reason_calls": 2,
             "min_branches": 1,
         },
+        "vm-directed": {
+            "controller": "ctrl",
+            "controller_prompt": "deliberate-directed",
+            "branches": ["w1", "w2"],
+            "reducer": "red",
+            "max_reason_calls": 2,
+            "min_branches": 1,
+        },
         "vm-off": {"controller": "ctrl", "reason_mode": "off"},
     },
     "trace_path": None,
@@ -349,6 +357,35 @@ async def test_v3_surface_still_rejects_arguments():
     eng, _ = engine({"ctrl": [ok("ctrl", "hmm", [focus_call("why?")], "tool_calls")]})
     with pytest.raises(UpstreamError):
         await eng.complete(dict(REQ), "vm-deliberate")
+
+async def test_directed_appends_exactly_one_user_directive_per_request():
+    from reasonproxy.prompts import DIRECTIVE_NUDGE_V1
+
+    eng, stub = engine({"ctrl": [ok("ctrl", "done", [shell_call("ls")], "tool_calls")]})
+    await eng.complete(dict(REQ), "vm-directed")
+
+    sent = stub.of("ctrl")[0]["messages"]
+    directives = [m for m in sent if m.get("role") == "user" and m.get("content") == DIRECTIVE_NUDGE_V1]
+    assert len(directives) == 1
+    assert sent[-1] == directives[0]
+
+
+async def test_directed_records_directive_revision_and_flag():
+    eng, _ = engine({"ctrl": [ok("ctrl", "done", [shell_call("ls")], "tool_calls")]})
+    _, trace = await eng.complete(dict(REQ), "vm-directed")
+
+    assert trace["prompt_revisions"]["directive"]["id"] == "directive-nudge-v1"
+    assert trace["directed"] is True
+
+
+async def test_undirected_v4_appends_no_directive():
+    eng, stub = engine({"ctrl": [ok("ctrl", "done", [shell_call("ls")], "tool_calls")]})
+    _, trace = await eng.complete(dict(REQ), "vm-deliberate-focus")
+
+    sent = stub.of("ctrl")[0]["messages"]
+    assert all(m.get("role") != "user" or "deliberate" not in (m.get("content") or "") for m in sent)
+    assert "directive" not in trace["prompt_revisions"]
+    assert "directed" not in trace
 
 
 # --------------------------------------------------------------------------- #
