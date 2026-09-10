@@ -46,10 +46,10 @@ import asyncio
 import hashlib
 import json
 import os
+import random
 import re
 import sys
 import time
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -141,6 +141,19 @@ def sha_text(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 
 
+def rel(path: Path) -> str:
+    """Repo-relative for artifacts that live here, absolute for everything else.
+
+    A snapshot, roster or manifest may legitimately sit outside the checkout
+    (a shared dataset cache, a scratch manifest), and provenance must record
+    where it actually was rather than crash on the prettier form.
+    """
+    try:
+        return str(path.relative_to(REPO))
+    except ValueError:
+        return str(path)
+
+
 def cmd_fetch(args: argparse.Namespace) -> int:
     """Download the gated HLE parquet once, into the shared task cache."""
     token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
@@ -194,8 +207,9 @@ def population(rows: list[dict[str, Any]], include_images: bool) -> list[dict[st
 
 
 def cmd_freeze(args: argparse.Namespace) -> int:
-    if not HLE_PARQUET.is_file():
-        raise SystemExit(f"missing dataset {HLE_PARQUET}; run `hle.py fetch` first")
+    dataset = Path(args.dataset).expanduser() if args.dataset else HLE_PARQUET
+    if not dataset.is_file():
+        raise SystemExit(f"missing dataset {dataset}; run `hle.py fetch` first")
     if args.max_completion_tokens < OFFICIAL_MIN_COMPLETION_TOKENS:
         raise SystemExit(
             f"--max-completion-tokens {args.max_completion_tokens} is below the official "
@@ -208,7 +222,7 @@ def cmd_freeze(args: argparse.Namespace) -> int:
     if not roster.is_file():
         raise SystemExit(f"missing roster {roster}")
 
-    rows = load_questions(HLE_PARQUET)
+    rows = load_questions(dataset)
     pool = population(rows, args.include_images)
     if args.max_samples:
         pool = pool[: args.max_samples]
@@ -238,9 +252,9 @@ def cmd_freeze(args: argparse.Namespace) -> int:
         "suite": "hle",
         "frozen_utc": utc_now(),
         "dataset": {
-            "source": HLE_SOURCE_URL,
-            "path": str(HLE_PARQUET),
-            "sha256": sha_file(HLE_PARQUET),
+            "source": HLE_SOURCE_URL if dataset == HLE_PARQUET else "explicit --dataset",
+            "path": str(dataset),
+            "sha256": sha_file(dataset),
             "rows_total": len(rows),
         },
         "population": {
@@ -271,9 +285,9 @@ def cmd_freeze(args: argparse.Namespace) -> int:
             "sampling_note": "no sampling parameters are sent; provider defaults decide",
         },
         "endpoint": {"proxy_url": args.proxy_url, "key_env": args.proxy_key_env},
-        "roster": {"path": str(roster.relative_to(REPO)), "sha256": sha_file(roster)},
+        "roster": {"path": rel(roster), "sha256": sha_file(roster)},
         "sources": source_digest(),
-        "job_root": str(JOB_ROOT.relative_to(REPO)),
+        "job_root": rel(JOB_ROOT),
         "primary_metric": (
             "accuracy over the declared population, unanswered counted wrong "
             "(official denominator)"
@@ -623,11 +637,9 @@ def calibration_error(confidences: list[float], correct: list[bool], beta: int =
 
 
 def paired_bootstrap(diffs: list[int], iters: int = 10000, seed: int = 0) -> list[float] | None:
-    import random as _random
-
     if not diffs:
         return None
-    rng = _random.Random(seed)
+    rng = random.Random(seed)
     n = len(diffs)
     means = sorted(sum(diffs[rng.randrange(n)] for _ in range(n)) / n for _ in range(iters))
     return [round(means[int(0.025 * iters)], 6), round(means[min(iters - 1, int(0.975 * iters))], 6)]
@@ -678,7 +690,7 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     report: dict[str, Any] = {
         "schema": "reasonproxy.hle-analysis/1",
         "analyzed_utc": utc_now(),
-        "manifest": str(manifest_path.relative_to(REPO)),
+        "manifest": rel(manifest_path),
         "population": n_population,
         "primary_metric": manifest["primary_metric"],
         "arms": {},
@@ -774,6 +786,9 @@ def main() -> int:
     freeze.add_argument("--conditions", nargs="+", required=True, help="control first, then arms")
     freeze.add_argument("--judge", required=True, help="arm-blind judge alias (a ctl/* passthrough)")
     freeze.add_argument("--roster", default="configs/research.yaml")
+    freeze.add_argument(
+        "--dataset", default=None, help="parquet snapshot; defaults to the fetched HLE cache"
+    )
     freeze.add_argument("--proxy-url", default="http://127.0.0.1:8100/v1")
     freeze.add_argument("--proxy-key-env", default="REASONPROXY_API_KEY")
     freeze.add_argument(
