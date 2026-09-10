@@ -1,0 +1,1131 @@
+{
+  "schema": "reasonproxy.execution/1",
+  "written_utc": "2026-09-10T06:00:13.560828+00:00",
+  "suite": "terminal-bench-2",
+  "runner": "harbor",
+  "runner_version": "0.22.0",
+  "native_launch": {
+    "venv_python": "/Users/mrwhite0racle/.local/share/uv/tools/harbor/bin/python3",
+    "bootstrap": "scripts/native_harness.py",
+    "bootstrap_sha256": "2237b005137c46b2ff0482f11c8031c58ccb77622599126d64ce7663cd8dac1f",
+    "policy_version": "native-exec-cancellation-guard/2",
+    "policy_digest": "9c5ffe3304d8c97db60fcd7dc4b025d1e29919c5a741106f42c9366ef05b08b0",
+    "target_digest": "851d3aeeca959bdcaffbc35e465f778ebdf05925e06d594b0eefc776fa9c13e3",
+    "cancellation_policy": {
+      "container_dependencies": {
+        "optional": [
+          "readlink (adds the inherited-stdio-pipe signal)"
+        ],
+        "required": [
+          "bash",
+          "Linux /proc",
+          "kill",
+          "sleep"
+        ]
+      },
+      "digest": "9c5ffe3304d8c97db60fcd7dc4b025d1e29919c5a741106f42c9366ef05b08b0",
+      "fail_closed": [
+        "install-time verification of the patched method's presence, coroutine-ness and signature",
+        "per-environment containment probe (marker visible in /proc/self/environ, foreign environ readable, /proc enumerable) before the first main-container exec runs",
+        "unparseable exec argv, detached (-d) exec, or Windows container: the exec is refused, never run unguarded",
+        "unproven containment latches the harness process: every later main-container exec, including fresh verifier environments, is refused"
+      ],
+      "known_limits": [
+        "a descendant that simultaneously replaces its environment, calls setsid, re-parents to PID 1 and closes the exec's stdio shares no inherited signal with the exec and is not detected",
+        "SIGKILL of the harness process itself leaves no opportunity to contain anything",
+        "no claim is made about deliberate escapes from a co-operating or hostile in-container process beyond the four signals above"
+      ],
+      "ladder": {
+        "abort_late_rounds": 4,
+        "late_round_interval_sec": 0.25,
+        "post_client_late_rounds": 2,
+        "probe_timeout_sec": 60,
+        "sweep_timeout_sec": 20,
+        "term_grace_sec": 2
+      },
+      "never_signalled": [
+        "pid 1",
+        "the reaper shell itself",
+        "zombies (already terminated; unreapable from inside, and excluded from the survivor count for the same reason)",
+        "anything outside the union above"
+      ],
+      "ownership_signals": [
+        "NATIVE_EXEC_GUARD_ID=<per-exec uuid4> present in /proc/<pid>/environ (inherited across fork/exec, survives re-parenting)",
+        "descendant of a marked root via /proc/<pid>/stat ppid chain (<=64 hops)",
+        "member of a process group led by a marked root",
+        "holder of this exec's inherited stdio pipe, matched by /proc/<pid>/fd/{0,1,2} link target (skipped when the container has no readlink)"
+      ],
+      "patched": {
+        "also": "asyncio.create_subprocess_exec (observation only; passthrough when no guarded exec is active)",
+        "method": "DockerEnvironment._run_docker_compose_command",
+        "out_of_scope": "sidecar-service execs, non-exec compose commands (build/up/ps/cp/down), Windows containers (explicitly rejected)",
+        "scope": "compose `exec` argv whose service is the harness main service"
+      },
+      "preserved": [
+        "argv, shell wrapper, cwd, user, stdin, stdout streaming, exit code",
+        "the original exception object and its type on the abort path",
+        "normal completion (no sweep, no extra container work)",
+        "unrelated pre-existing container services and concurrently marked execs"
+      ],
+      "scripts": {
+        "probe_sha256": "738d6f809f80a6832ca04e0f0eb5e1304b39fcf0e775cd4826c1641c5e9a0d82",
+        "reaper_sha256": "df24e9d365ba5e3efba795d6009250c6da41bfd8a87c480b280073a704442e5d"
+      },
+      "summary": "On any abnormal exit (asyncio cancellation, harness exec timeout, host error) from a Linux main-container `docker compose exec`, the in-container command and its active descendants are SIGTERMed, then SIGKILLed and verified gone, before the exception propagates and the verifier phase starts; the host docker client and its host-side descendants are reaped afterwards, then containment is re-verified.",
+      "transport": "the compose argv prefix and environment observed from the guarded exec itself, reused verbatim for the reaper",
+      "version": "native-exec-cancellation-guard/2"
+    },
+    "patched_runtime": {
+      "class": {
+        "qualname": "harbor.environments.docker.docker.DockerEnvironment"
+      },
+      "main_service": "main",
+      "methods": {
+        "_collect_buffered_output": {
+          "present": true,
+          "signature": "(process: asyncio.subprocess.Process, *, timeout_sec: int | None, stdin_data: bytes | None = None) -> harbor.environments.base.ExecResult",
+          "source_sha256": "9deccdb55072b381406e67bd5164df6dbd047d1cd4272bb687670688f909ec59"
+        },
+        "_collect_streamed_output": {
+          "present": true,
+          "signature": "(process: asyncio.subprocess.Process, *, timeout_sec: int | None, stdin_data: bytes | None = None, on_output: collections.abc.Callable[[str, typing.Literal['stdout', 'stderr']], collections.abc.Awaitable[None]]) -> harbor.environments.base.ExecResult",
+          "source_sha256": "75eefd2bc921d0d1de1e779cd5ac0729426573b68eb62db547cc81759c561f1f"
+        },
+        "_compose_exec": {
+          "present": true,
+          "signature": "(self, command: str, *, service: str, cwd: str | None, env: dict[str, str] | None, timeout_sec: int | None, user: str | int | None) -> harbor.environments.base.ExecResult",
+          "source_sha256": "0c7a1fdb10b851c5bcd8412e2e242cf8eb8a694b128d448f5bb8d8e3679297b6"
+        },
+        "_run_docker_compose_command": {
+          "present": true,
+          "signature": "(self, command: list[str], check: bool = True, timeout_sec: int | None = None, stdin_data: bytes | None = None, on_output: collections.abc.Callable[[str, typing.Literal['stdout', 'stderr']], collections.abc.Awaitable[None]] | None = None) -> harbor.environments.base.ExecResult",
+          "source_sha256": "3842bcbe9a34192cd67e3b651d4c7ee12313c0daabac0f2d6f5897936168291c"
+        },
+        "_terminate_process": {
+          "present": true,
+          "signature": "(process: asyncio.subprocess.Process) -> None",
+          "source_sha256": "94c45cdbb210dcb46af4ec928cd8ff5f1ca6616a14388279968f0b8482dfcefb"
+        },
+        "exec": {
+          "present": true,
+          "signature": "(self, command: str, cwd: str | None = None, env: dict[str, str] | None = None, timeout_sec: int | None = None, user: str | int | None = None) -> harbor.environments.base.ExecResult",
+          "source_sha256": "2624d5b7ca23ba990ca64ad8e80edb03f7fe80f57816f729426c18cb383de9b5"
+        },
+        "service_exec": {
+          "present": true,
+          "signature": "(self, command: str, *, service: str | None = None, cwd: str | None = None, env: dict[str, str] | None = None, timeout_sec: int | None = None, user: str | int | None = None) -> harbor.environments.base.ExecResult",
+          "source_sha256": "58fb7ba9283864b4a51898bf5b97c6bb07fe3d4e72d2942d0b5107cf0b45ceb8"
+        }
+      },
+      "modules": {
+        "harbor.constants": {
+          "file": "/Users/mrwhite0racle/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/constants.py",
+          "sha256": "adc8213e55facf42a89db48949f62cb95a842c7a417045d477828cd0bff0bb1e"
+        },
+        "harbor.environments.base": {
+          "file": "/Users/mrwhite0racle/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/environments/base.py",
+          "sha256": "74ce73b043041ac8ec3214b73613a9827ca878d8a97b32f0d572a7f9173fef08"
+        },
+        "harbor.environments.docker.docker": {
+          "file": "/Users/mrwhite0racle/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/environments/docker/docker.py",
+          "sha256": "32f7c7b1b875cb9682a172b5cbe9d4c4e5e90c69fedeef5186baf363ed9d00e5"
+        },
+        "harbor.environments.docker.docker_unix": {
+          "file": "/Users/mrwhite0racle/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/environments/docker/docker_unix.py",
+          "sha256": "58b525e4e2fff1ab39997c82c971beba98f5a0dd80984778f493aec0191cb642"
+        }
+      },
+      "package": {
+        "dist": "harbor",
+        "name": "harbor",
+        "version": "0.22.0"
+      },
+      "python": {
+        "executable": "/Users/mrwhite0racle/.local/share/uv/tools/harbor/bin/python3",
+        "version": "3.12.4"
+      },
+      "target_digest": "851d3aeeca959bdcaffbc35e465f778ebdf05925e06d594b0eefc776fa9c13e3"
+    },
+    "entrypoint": "runpy of the original console script, arguments unchanged"
+  },
+  "conformance": false,
+  "dry_run": false,
+  "frozen_manifest": {
+    "path": "runs/frozen/terminal-bench-2-best-nodefaults-20260910.json",
+    "sha256": "aafcb535567e38aaee1dc08af8bcb2aa4a4c2cf5cbfbf57cf7ac3a4ee13e6f7c"
+  },
+  "counts": {
+    "planned_in_manifest": 18,
+    "requested": 9,
+    "executed": 9,
+    "missing": 0
+  },
+  "filters": {
+    "conditions": [
+      "ctl/glm53-best",
+      "noop/glm53-best",
+      "rp/glm53-best"
+    ],
+    "tasks": null,
+    "repeats": null,
+    "limit": null
+  },
+  "requested_trial_keys": [
+    "terminal-bench-2/ctl/glm53-best/sqlite-db-truncate/r1",
+    "terminal-bench-2/rp/glm53-best/sqlite-db-truncate/r1",
+    "terminal-bench-2/noop/glm53-best/sqlite-db-truncate/r1",
+    "terminal-bench-2/ctl/glm53-best/query-optimize/r1",
+    "terminal-bench-2/rp/glm53-best/query-optimize/r1",
+    "terminal-bench-2/noop/glm53-best/query-optimize/r1",
+    "terminal-bench-2/ctl/glm53-best/log-summary-date-ranges/r1",
+    "terminal-bench-2/rp/glm53-best/log-summary-date-ranges/r1",
+    "terminal-bench-2/noop/glm53-best/log-summary-date-ranges/r1"
+  ],
+  "missing_trial_keys": [],
+  "endpoint": {
+    "proxy_url_in_sandbox": "http://host.docker.internal:8101/v1",
+    "preflight_url": "http://127.0.0.1:8101/v1",
+    "auth": "bearer via ${REASONPROXY_API_KEY} template, resolved by the harness at runtime",
+    "proxy_key_env": "REASONPROXY_API_KEY",
+    "advertised_models": [
+      "ctl/cf-deepseek-pro",
+      "ctl/cf-glm53",
+      "ctl/cf-glm53-flash",
+      "ctl/cf-qwen38",
+      "ctl/cf-super",
+      "ctl/glm53-best",
+      "ctl/glm53-flash-best",
+      "noop/cf-super",
+      "noop/glm53-best",
+      "noop/glm53-flash-best",
+      "rp/cf-best-probe",
+      "rp/cf-deepseek-captain",
+      "rp/cf-gd-core",
+      "rp/cf-homogeneous",
+      "rp/glm53-best",
+      "rp/glm53-flash-best"
+    ],
+    "preflight": "ok"
+  },
+  "harness_settings": {
+    "model_name_template": "hosted_vllm/<alias>",
+    "proxy_url_in_sandbox": "http://host.docker.internal:8100/v1",
+    "agent_phase_allowlist": [
+      "host.docker.internal"
+    ],
+    "agent_step_limit": 250,
+    "cost_limit": "disabled (agent.cost_limit=0, MSWEA_COST_TRACKING=ignore_errors)",
+    "added_wall_clock_cap": null,
+    "timeout_multiplier": 1.0,
+    "n_concurrent_trials": 1,
+    "retries": 0,
+    "official_task_limits": "unchanged",
+    "native_exec_cancellation_guard": {
+      "bootstrap": "scripts/native_harness.py",
+      "bootstrap_sha256": "2237b005137c46b2ff0482f11c8031c58ccb77622599126d64ce7663cd8dac1f",
+      "policy_version": "native-exec-cancellation-guard/2",
+      "policy_digest": "9c5ffe3304d8c97db60fcd7dc4b025d1e29919c5a741106f42c9366ef05b08b0",
+      "target_digest": "851d3aeeca959bdcaffbc35e465f778ebdf05925e06d594b0eefc776fa9c13e3",
+      "install_ok": true,
+      "error": null,
+      "summary": "On any abnormal exit (asyncio cancellation, harness exec timeout, host error) from a Linux main-container `docker compose exec`, the in-container command and its active descendants are SIGTERMed, then SIGKILLed and verified gone, before the exception propagates and the verifier phase starts; the host docker client and its host-side descendants are reaped afterwards, then containment is re-verified."
+    },
+    "declared": {
+      "agent_step_limit": 250,
+      "cost_limit": "disabled",
+      "timeout_multiplier": 1.0,
+      "n_concurrent_trials": 1,
+      "external_job_concurrency": 2,
+      "official_limits_unchanged": {
+        "agent_timeout_sec": 900
+      }
+    }
+  },
+  "sources_at_run": {
+    "files": {
+      "src/reasonproxy/__init__.py": "354bf45c3b76e8479df759df0c89c682dde1b3446025950f1da656da68065eb9",
+      "src/reasonproxy/app.py": "f243c227ba57f22baa590d0255e7b711341d31dfc8fd937208ef6e07d7f79f2a",
+      "src/reasonproxy/config.py": "8ac2bc8e5464e5961e8e75fb2b18395c1cacdf3ee187415e685c9185984256d7",
+      "src/reasonproxy/engine.py": "0b8b3f090ba6bd31d16d24b854a0d4115a0438df1059eb03336e6eaa72a72828",
+      "src/reasonproxy/prompts.py": "3d5b68305f3c4eaf5fcf1d31a869dff4e224dd3102dce89718613ae1a749702c",
+      "src/reasonproxy/upstream.py": "3390eabda76a0e79aebe3d7ba46ce0ce4b87b4c6711a55fe667109ad69a01520",
+      "workers/ai/index.js": "417afebd7436fbe7399817db19b799cdcb6fdc54d620f6ad111e4b5058c5c618",
+      "workers/ai/wrangler.jsonc": "d3534a1cdac05d2895a0bf6fc9792b9655f54f25b868a2425b140aa6103354b0",
+      "experiments/deepswe/pilot.json": "ae1a0c5c8662b8ed2f244644fa59eba119acccfbd31e0253742ef352698a337d",
+      "experiments/deepswe/mini-swe.yaml": "0082d4419f1b4c1e025a6bcfdbe23877f165dad6c86d844b1612d26099a267b7",
+      "scripts/benchmark.py": "b499d3587fd2908866e426d4a2a6da70d74f95b39bf996d00bbe4981a217fba1",
+      "scripts/live_smoke.py": "07d8331a4ea7b83e2aef3d73e3250e23f995522fa9724c0fe0ca12863973e9eb",
+      "scripts/native_harness.py": "2237b005137c46b2ff0482f11c8031c58ccb77622599126d64ce7663cd8dac1f"
+    },
+    "combined_sha256": "258b43fc4da156064bda52f59123af6c4521b2924a86a112c8d297584b08417a",
+    "proxy_sha256": "2c7dc5e2bfd2f95f307408d41fca9ccac31d34f8112c78f5163459031e1df3c8",
+    "note": "No git commit exists for this working tree; these are content hashes."
+  },
+  "roster_sha256_at_run": "28d8c44af7a9d15396b0893959474ab0b6fdfe0638eb154caa5c82b848749765",
+  "trace_path": "/Users/mrwhite0racle/Deliberate/runs/cloudflare.jsonl",
+  "host": {
+    "platform": "macOS-26.5-arm64-arm-64bit",
+    "machine": "arm64",
+    "processor": "arm",
+    "python": "3.12.4",
+    "docker": {
+      "available": true,
+      "server_version": "28.5.1",
+      "architecture": "aarch64",
+      "os_type": "linux",
+      "ncpu": 8,
+      "mem_total_bytes": 8218316800
+    },
+    "emulation_note": "DeepSWE images are linux/amd64; on an arm64 host they execute under emulation, which consumes part of the official agent budget."
+  },
+  "deviations": [],
+  "jobs": [
+    {
+      "job_name": "terminal-bench-2__ctl-glm53-best__sqlite-db-truncate__r1__20260910T031755Z-e996d105",
+      "condition": "ctl/glm53-best",
+      "task": "sqlite-db-truncate",
+      "repeat": 1,
+      "trial_key": "terminal-bench-2/ctl/glm53-best/sqlite-db-truncate/r1",
+      "config_path": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/configs/terminal-bench-2__ctl-glm53-best__sqlite-db-truncate__r1__20260910T031755Z-e996d105.yaml",
+      "config_sha256": "8eaf192cd06ff802aad4987f27ac531175e747f2cb1041ae7f6ac77be0e3f4d7",
+      "command": [
+        "/Users/mrwhite0racle/.local/share/uv/tools/harbor/bin/python3",
+        "/Users/mrwhite0racle/Deliberate/scripts/native_harness.py",
+        "harbor",
+        "/Users/mrwhite0racle/.local/bin/harbor",
+        "run",
+        "-c",
+        "/Users/mrwhite0racle/Deliberate/runs/tb2-best/configs/terminal-bench-2__ctl-glm53-best__sqlite-db-truncate__r1__20260910T031755Z-e996d105.yaml",
+        "-y"
+      ],
+      "job_dir": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__ctl-glm53-best__sqlite-db-truncate__r1__20260910T031755Z-e996d105",
+      "injected_session_id": null,
+      "exec_guard": {
+        "policy_digest": "9c5ffe3304d8c97db60fcd7dc4b025d1e29919c5a741106f42c9366ef05b08b0",
+        "target_digest": "851d3aeeca959bdcaffbc35e465f778ebdf05925e06d594b0eefc776fa9c13e3",
+        "event_log": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__ctl-glm53-best__sqlite-db-truncate__r1__20260910T031755Z-e996d105/native-harness-events.jsonl",
+        "breach_log": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__ctl-glm53-best__sqlite-db-truncate__r1__20260910T031755Z-e996d105/native-harness-breaches.jsonl",
+        "installed": true,
+        "ready": true,
+        "contained_execs": 0,
+        "containment_elapsed_sec": [],
+        "unsupported": [],
+        "breaches": []
+      },
+      "trace_before": {
+        "path": "/Users/mrwhite0racle/Deliberate/runs/cloudflare.jsonl",
+        "exists": true,
+        "bytes": 14278,
+        "lines": 10,
+        "sha256": "a38db7d418644e60b417919ddeb8c6288c6e6ffe6621e425748da3bc4e61e318"
+      },
+      "started_at": "2026-09-10T03:17:55.630185+00:00",
+      "finished_at": "2026-09-10T03:32:37.653409+00:00",
+      "exit_code": 0,
+      "trace_after": {
+        "path": "/Users/mrwhite0racle/Deliberate/runs/cloudflare.jsonl",
+        "exists": true,
+        "bytes": 96069,
+        "lines": 59,
+        "sha256": "48376377acc3cebdaf5d37d99d332e6a9bea063be6606ee548759009672592b6"
+      },
+      "trials_found": 1
+    },
+    {
+      "job_name": "terminal-bench-2__rp-glm53-best__sqlite-db-truncate__r1__20260910T031755Z-e996d105",
+      "condition": "rp/glm53-best",
+      "task": "sqlite-db-truncate",
+      "repeat": 1,
+      "trial_key": "terminal-bench-2/rp/glm53-best/sqlite-db-truncate/r1",
+      "config_path": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/configs/terminal-bench-2__rp-glm53-best__sqlite-db-truncate__r1__20260910T031755Z-e996d105.yaml",
+      "config_sha256": "eb6b97af620ba03f9c9bbaa5155c39ddfec044388decb5b6a53195a9d745b576",
+      "command": [
+        "/Users/mrwhite0racle/.local/share/uv/tools/harbor/bin/python3",
+        "/Users/mrwhite0racle/Deliberate/scripts/native_harness.py",
+        "harbor",
+        "/Users/mrwhite0racle/.local/bin/harbor",
+        "run",
+        "-c",
+        "/Users/mrwhite0racle/Deliberate/runs/tb2-best/configs/terminal-bench-2__rp-glm53-best__sqlite-db-truncate__r1__20260910T031755Z-e996d105.yaml",
+        "-y"
+      ],
+      "job_dir": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__rp-glm53-best__sqlite-db-truncate__r1__20260910T031755Z-e996d105",
+      "injected_session_id": null,
+      "exec_guard": {
+        "policy_digest": "9c5ffe3304d8c97db60fcd7dc4b025d1e29919c5a741106f42c9366ef05b08b0",
+        "target_digest": "851d3aeeca959bdcaffbc35e465f778ebdf05925e06d594b0eefc776fa9c13e3",
+        "event_log": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__rp-glm53-best__sqlite-db-truncate__r1__20260910T031755Z-e996d105/native-harness-events.jsonl",
+        "breach_log": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__rp-glm53-best__sqlite-db-truncate__r1__20260910T031755Z-e996d105/native-harness-breaches.jsonl",
+        "installed": true,
+        "ready": true,
+        "contained_execs": 0,
+        "containment_elapsed_sec": [],
+        "unsupported": [],
+        "breaches": []
+      },
+      "trace_before": {
+        "path": "/Users/mrwhite0racle/Deliberate/runs/cloudflare.jsonl",
+        "exists": true,
+        "bytes": 96069,
+        "lines": 59,
+        "sha256": "48376377acc3cebdaf5d37d99d332e6a9bea063be6606ee548759009672592b6"
+      },
+      "started_at": "2026-09-10T03:32:37.680580+00:00",
+      "finished_at": "2026-09-10T03:45:42.990770+00:00",
+      "exit_code": 0,
+      "trace_after": {
+        "path": "/Users/mrwhite0racle/Deliberate/runs/cloudflare.jsonl",
+        "exists": true,
+        "bytes": 205124,
+        "lines": 84,
+        "sha256": "022f46cdf6576ba91d187defcf251d31241fdcb8bbdb80159b872b60d4d8f3af"
+      },
+      "trials_found": 1
+    },
+    {
+      "job_name": "terminal-bench-2__noop-glm53-best__sqlite-db-truncate__r1__20260910T031755Z-e996d105",
+      "condition": "noop/glm53-best",
+      "task": "sqlite-db-truncate",
+      "repeat": 1,
+      "trial_key": "terminal-bench-2/noop/glm53-best/sqlite-db-truncate/r1",
+      "config_path": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/configs/terminal-bench-2__noop-glm53-best__sqlite-db-truncate__r1__20260910T031755Z-e996d105.yaml",
+      "config_sha256": "f97aad189fdbdbffb8d9855cde4a2397cdaf886603f96599b6c451b7496356b3",
+      "command": [
+        "/Users/mrwhite0racle/.local/share/uv/tools/harbor/bin/python3",
+        "/Users/mrwhite0racle/Deliberate/scripts/native_harness.py",
+        "harbor",
+        "/Users/mrwhite0racle/.local/bin/harbor",
+        "run",
+        "-c",
+        "/Users/mrwhite0racle/Deliberate/runs/tb2-best/configs/terminal-bench-2__noop-glm53-best__sqlite-db-truncate__r1__20260910T031755Z-e996d105.yaml",
+        "-y"
+      ],
+      "job_dir": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__noop-glm53-best__sqlite-db-truncate__r1__20260910T031755Z-e996d105",
+      "injected_session_id": null,
+      "exec_guard": {
+        "policy_digest": "9c5ffe3304d8c97db60fcd7dc4b025d1e29919c5a741106f42c9366ef05b08b0",
+        "target_digest": "851d3aeeca959bdcaffbc35e465f778ebdf05925e06d594b0eefc776fa9c13e3",
+        "event_log": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__noop-glm53-best__sqlite-db-truncate__r1__20260910T031755Z-e996d105/native-harness-events.jsonl",
+        "breach_log": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__noop-glm53-best__sqlite-db-truncate__r1__20260910T031755Z-e996d105/native-harness-breaches.jsonl",
+        "installed": true,
+        "ready": true,
+        "contained_execs": 0,
+        "containment_elapsed_sec": [],
+        "unsupported": [],
+        "breaches": []
+      },
+      "trace_before": {
+        "path": "/Users/mrwhite0racle/Deliberate/runs/cloudflare.jsonl",
+        "exists": true,
+        "bytes": 205124,
+        "lines": 84,
+        "sha256": "022f46cdf6576ba91d187defcf251d31241fdcb8bbdb80159b872b60d4d8f3af"
+      },
+      "started_at": "2026-09-10T03:45:42.999071+00:00",
+      "finished_at": "2026-09-10T03:59:51.819023+00:00",
+      "exit_code": 0,
+      "trace_after": {
+        "path": "/Users/mrwhite0racle/Deliberate/runs/cloudflare.jsonl",
+        "exists": true,
+        "bytes": 294587,
+        "lines": 135,
+        "sha256": "8a8c5e227f1a5704abb10a32951551eb583e6dc580fe6ae5db28f53562af45f7"
+      },
+      "trials_found": 1
+    },
+    {
+      "job_name": "terminal-bench-2__ctl-glm53-best__query-optimize__r1__20260910T031755Z-e996d105",
+      "condition": "ctl/glm53-best",
+      "task": "query-optimize",
+      "repeat": 1,
+      "trial_key": "terminal-bench-2/ctl/glm53-best/query-optimize/r1",
+      "config_path": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/configs/terminal-bench-2__ctl-glm53-best__query-optimize__r1__20260910T031755Z-e996d105.yaml",
+      "config_sha256": "ea5d32558fd8d53db17515766aaee244e05caeb899a46f66b0c1c3c664956482",
+      "command": [
+        "/Users/mrwhite0racle/.local/share/uv/tools/harbor/bin/python3",
+        "/Users/mrwhite0racle/Deliberate/scripts/native_harness.py",
+        "harbor",
+        "/Users/mrwhite0racle/.local/bin/harbor",
+        "run",
+        "-c",
+        "/Users/mrwhite0racle/Deliberate/runs/tb2-best/configs/terminal-bench-2__ctl-glm53-best__query-optimize__r1__20260910T031755Z-e996d105.yaml",
+        "-y"
+      ],
+      "job_dir": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__ctl-glm53-best__query-optimize__r1__20260910T031755Z-e996d105",
+      "injected_session_id": null,
+      "exec_guard": {
+        "policy_digest": "9c5ffe3304d8c97db60fcd7dc4b025d1e29919c5a741106f42c9366ef05b08b0",
+        "target_digest": "851d3aeeca959bdcaffbc35e465f778ebdf05925e06d594b0eefc776fa9c13e3",
+        "event_log": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__ctl-glm53-best__query-optimize__r1__20260910T031755Z-e996d105/native-harness-events.jsonl",
+        "breach_log": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__ctl-glm53-best__query-optimize__r1__20260910T031755Z-e996d105/native-harness-breaches.jsonl",
+        "installed": true,
+        "ready": true,
+        "contained_execs": 1,
+        "containment_elapsed_sec": [
+          3.345
+        ],
+        "unsupported": [],
+        "breaches": []
+      },
+      "trace_before": {
+        "path": "/Users/mrwhite0racle/Deliberate/runs/cloudflare.jsonl",
+        "exists": true,
+        "bytes": 294587,
+        "lines": 135,
+        "sha256": "8a8c5e227f1a5704abb10a32951551eb583e6dc580fe6ae5db28f53562af45f7"
+      },
+      "started_at": "2026-09-10T03:59:51.839320+00:00",
+      "finished_at": "2026-09-10T04:35:46.667677+00:00",
+      "exit_code": 0,
+      "trace_after": {
+        "path": "/Users/mrwhite0racle/Deliberate/runs/cloudflare.jsonl",
+        "exists": true,
+        "bytes": 398236,
+        "lines": 181,
+        "sha256": "db4dba068c8c4668a90a2e55066083826d40c5634f0853360e44c7e34ae66b53"
+      },
+      "trials_found": 1
+    },
+    {
+      "job_name": "terminal-bench-2__rp-glm53-best__query-optimize__r1__20260910T031755Z-e996d105",
+      "condition": "rp/glm53-best",
+      "task": "query-optimize",
+      "repeat": 1,
+      "trial_key": "terminal-bench-2/rp/glm53-best/query-optimize/r1",
+      "config_path": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/configs/terminal-bench-2__rp-glm53-best__query-optimize__r1__20260910T031755Z-e996d105.yaml",
+      "config_sha256": "27e3adce3ab24c7b14dc653543150a13a28a8cec44e8fbfc5bc3e642d403e6fd",
+      "command": [
+        "/Users/mrwhite0racle/.local/share/uv/tools/harbor/bin/python3",
+        "/Users/mrwhite0racle/Deliberate/scripts/native_harness.py",
+        "harbor",
+        "/Users/mrwhite0racle/.local/bin/harbor",
+        "run",
+        "-c",
+        "/Users/mrwhite0racle/Deliberate/runs/tb2-best/configs/terminal-bench-2__rp-glm53-best__query-optimize__r1__20260910T031755Z-e996d105.yaml",
+        "-y"
+      ],
+      "job_dir": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__rp-glm53-best__query-optimize__r1__20260910T031755Z-e996d105",
+      "injected_session_id": null,
+      "exec_guard": {
+        "policy_digest": "9c5ffe3304d8c97db60fcd7dc4b025d1e29919c5a741106f42c9366ef05b08b0",
+        "target_digest": "851d3aeeca959bdcaffbc35e465f778ebdf05925e06d594b0eefc776fa9c13e3",
+        "event_log": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__rp-glm53-best__query-optimize__r1__20260910T031755Z-e996d105/native-harness-events.jsonl",
+        "breach_log": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__rp-glm53-best__query-optimize__r1__20260910T031755Z-e996d105/native-harness-breaches.jsonl",
+        "installed": true,
+        "ready": true,
+        "contained_execs": 1,
+        "containment_elapsed_sec": [
+          2.583
+        ],
+        "unsupported": [],
+        "breaches": []
+      },
+      "trace_before": {
+        "path": "/Users/mrwhite0racle/Deliberate/runs/cloudflare.jsonl",
+        "exists": true,
+        "bytes": 398236,
+        "lines": 181,
+        "sha256": "db4dba068c8c4668a90a2e55066083826d40c5634f0853360e44c7e34ae66b53"
+      },
+      "started_at": "2026-09-10T04:35:46.681679+00:00",
+      "finished_at": "2026-09-10T05:05:02.865927+00:00",
+      "exit_code": 0,
+      "trace_after": {
+        "path": "/Users/mrwhite0racle/Deliberate/runs/cloudflare.jsonl",
+        "exists": true,
+        "bytes": 498920,
+        "lines": 213,
+        "sha256": "fb1afb5bd91d652de960778b76ad46207ed19ccbef6226570a92ae3f1c96ee29"
+      },
+      "trials_found": 1
+    },
+    {
+      "job_name": "terminal-bench-2__noop-glm53-best__query-optimize__r1__20260910T031755Z-e996d105",
+      "condition": "noop/glm53-best",
+      "task": "query-optimize",
+      "repeat": 1,
+      "trial_key": "terminal-bench-2/noop/glm53-best/query-optimize/r1",
+      "config_path": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/configs/terminal-bench-2__noop-glm53-best__query-optimize__r1__20260910T031755Z-e996d105.yaml",
+      "config_sha256": "d50b6a4bd3724fb37a736d767afe3847aab49dd9e13e7f849ad3df33ede86465",
+      "command": [
+        "/Users/mrwhite0racle/.local/share/uv/tools/harbor/bin/python3",
+        "/Users/mrwhite0racle/Deliberate/scripts/native_harness.py",
+        "harbor",
+        "/Users/mrwhite0racle/.local/bin/harbor",
+        "run",
+        "-c",
+        "/Users/mrwhite0racle/Deliberate/runs/tb2-best/configs/terminal-bench-2__noop-glm53-best__query-optimize__r1__20260910T031755Z-e996d105.yaml",
+        "-y"
+      ],
+      "job_dir": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__noop-glm53-best__query-optimize__r1__20260910T031755Z-e996d105",
+      "injected_session_id": null,
+      "exec_guard": {
+        "policy_digest": "9c5ffe3304d8c97db60fcd7dc4b025d1e29919c5a741106f42c9366ef05b08b0",
+        "target_digest": "851d3aeeca959bdcaffbc35e465f778ebdf05925e06d594b0eefc776fa9c13e3",
+        "event_log": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__noop-glm53-best__query-optimize__r1__20260910T031755Z-e996d105/native-harness-events.jsonl",
+        "breach_log": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__noop-glm53-best__query-optimize__r1__20260910T031755Z-e996d105/native-harness-breaches.jsonl",
+        "installed": true,
+        "ready": true,
+        "contained_execs": 1,
+        "containment_elapsed_sec": [
+          3.375
+        ],
+        "unsupported": [],
+        "breaches": []
+      },
+      "trace_before": {
+        "path": "/Users/mrwhite0racle/Deliberate/runs/cloudflare.jsonl",
+        "exists": true,
+        "bytes": 498920,
+        "lines": 213,
+        "sha256": "fb1afb5bd91d652de960778b76ad46207ed19ccbef6226570a92ae3f1c96ee29"
+      },
+      "started_at": "2026-09-10T05:05:02.872714+00:00",
+      "finished_at": "2026-09-10T05:33:47.080515+00:00",
+      "exit_code": 0,
+      "trace_after": {
+        "path": "/Users/mrwhite0racle/Deliberate/runs/cloudflare.jsonl",
+        "exists": true,
+        "bytes": 596485,
+        "lines": 245,
+        "sha256": "981e0631c47baa454085c571a0d00ac4031d206d4aa1eefeb47417ef9912bd58"
+      },
+      "trials_found": 1
+    },
+    {
+      "job_name": "terminal-bench-2__ctl-glm53-best__log-summary-date-ranges__r1__20260910T031755Z-e996d105",
+      "condition": "ctl/glm53-best",
+      "task": "log-summary-date-ranges",
+      "repeat": 1,
+      "trial_key": "terminal-bench-2/ctl/glm53-best/log-summary-date-ranges/r1",
+      "config_path": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/configs/terminal-bench-2__ctl-glm53-best__log-summary-date-ranges__r1__20260910T031755Z-e996d105.yaml",
+      "config_sha256": "43079f4acc0d4490827a73d4aefcee162c049ecd3a770d2a56a8b1b1125dd559",
+      "command": [
+        "/Users/mrwhite0racle/.local/share/uv/tools/harbor/bin/python3",
+        "/Users/mrwhite0racle/Deliberate/scripts/native_harness.py",
+        "harbor",
+        "/Users/mrwhite0racle/.local/bin/harbor",
+        "run",
+        "-c",
+        "/Users/mrwhite0racle/Deliberate/runs/tb2-best/configs/terminal-bench-2__ctl-glm53-best__log-summary-date-ranges__r1__20260910T031755Z-e996d105.yaml",
+        "-y"
+      ],
+      "job_dir": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__ctl-glm53-best__log-summary-date-ranges__r1__20260910T031755Z-e996d105",
+      "injected_session_id": null,
+      "exec_guard": {
+        "policy_digest": "9c5ffe3304d8c97db60fcd7dc4b025d1e29919c5a741106f42c9366ef05b08b0",
+        "target_digest": "851d3aeeca959bdcaffbc35e465f778ebdf05925e06d594b0eefc776fa9c13e3",
+        "event_log": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__ctl-glm53-best__log-summary-date-ranges__r1__20260910T031755Z-e996d105/native-harness-events.jsonl",
+        "breach_log": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__ctl-glm53-best__log-summary-date-ranges__r1__20260910T031755Z-e996d105/native-harness-breaches.jsonl",
+        "installed": true,
+        "ready": true,
+        "contained_execs": 0,
+        "containment_elapsed_sec": [],
+        "unsupported": [],
+        "breaches": []
+      },
+      "trace_before": {
+        "path": "/Users/mrwhite0racle/Deliberate/runs/cloudflare.jsonl",
+        "exists": true,
+        "bytes": 596485,
+        "lines": 245,
+        "sha256": "981e0631c47baa454085c571a0d00ac4031d206d4aa1eefeb47417ef9912bd58"
+      },
+      "started_at": "2026-09-10T05:33:47.090257+00:00",
+      "finished_at": "2026-09-10T05:38:49.963410+00:00",
+      "exit_code": 0,
+      "trace_after": {
+        "path": "/Users/mrwhite0racle/Deliberate/runs/cloudflare.jsonl",
+        "exists": true,
+        "bytes": 674685,
+        "lines": 268,
+        "sha256": "478874dd1b1776166a72c1dfd69135078b41b0a13ac544d70588e3d1afb79902"
+      },
+      "trials_found": 1
+    },
+    {
+      "job_name": "terminal-bench-2__rp-glm53-best__log-summary-date-ranges__r1__20260910T031755Z-e996d105",
+      "condition": "rp/glm53-best",
+      "task": "log-summary-date-ranges",
+      "repeat": 1,
+      "trial_key": "terminal-bench-2/rp/glm53-best/log-summary-date-ranges/r1",
+      "config_path": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/configs/terminal-bench-2__rp-glm53-best__log-summary-date-ranges__r1__20260910T031755Z-e996d105.yaml",
+      "config_sha256": "c8ef80a78970a0219e385681efeed16e502838fd4cf12a358e71a7d72eb2ce95",
+      "command": [
+        "/Users/mrwhite0racle/.local/share/uv/tools/harbor/bin/python3",
+        "/Users/mrwhite0racle/Deliberate/scripts/native_harness.py",
+        "harbor",
+        "/Users/mrwhite0racle/.local/bin/harbor",
+        "run",
+        "-c",
+        "/Users/mrwhite0racle/Deliberate/runs/tb2-best/configs/terminal-bench-2__rp-glm53-best__log-summary-date-ranges__r1__20260910T031755Z-e996d105.yaml",
+        "-y"
+      ],
+      "job_dir": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__rp-glm53-best__log-summary-date-ranges__r1__20260910T031755Z-e996d105",
+      "injected_session_id": null,
+      "exec_guard": {
+        "policy_digest": "9c5ffe3304d8c97db60fcd7dc4b025d1e29919c5a741106f42c9366ef05b08b0",
+        "target_digest": "851d3aeeca959bdcaffbc35e465f778ebdf05925e06d594b0eefc776fa9c13e3",
+        "event_log": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__rp-glm53-best__log-summary-date-ranges__r1__20260910T031755Z-e996d105/native-harness-events.jsonl",
+        "breach_log": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__rp-glm53-best__log-summary-date-ranges__r1__20260910T031755Z-e996d105/native-harness-breaches.jsonl",
+        "installed": true,
+        "ready": true,
+        "contained_execs": 0,
+        "containment_elapsed_sec": [],
+        "unsupported": [],
+        "breaches": []
+      },
+      "trace_before": {
+        "path": "/Users/mrwhite0racle/Deliberate/runs/cloudflare.jsonl",
+        "exists": true,
+        "bytes": 674685,
+        "lines": 268,
+        "sha256": "478874dd1b1776166a72c1dfd69135078b41b0a13ac544d70588e3d1afb79902"
+      },
+      "started_at": "2026-09-10T05:38:49.972998+00:00",
+      "finished_at": "2026-09-10T05:55:13.717829+00:00",
+      "exit_code": 0,
+      "trace_after": {
+        "path": "/Users/mrwhite0racle/Deliberate/runs/cloudflare.jsonl",
+        "exists": true,
+        "bytes": 860320,
+        "lines": 291,
+        "sha256": "808a92573a59d36d4c8b3bc57e29a2fdb0fad11d3ba583cc1c44801216848ee0"
+      },
+      "trials_found": 1
+    },
+    {
+      "job_name": "terminal-bench-2__noop-glm53-best__log-summary-date-ranges__r1__20260910T031755Z-e996d105",
+      "condition": "noop/glm53-best",
+      "task": "log-summary-date-ranges",
+      "repeat": 1,
+      "trial_key": "terminal-bench-2/noop/glm53-best/log-summary-date-ranges/r1",
+      "config_path": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/configs/terminal-bench-2__noop-glm53-best__log-summary-date-ranges__r1__20260910T031755Z-e996d105.yaml",
+      "config_sha256": "92687de0ffb94a990a7f8807f7818c17021f4e2cbac3e6e0c38ea4a86fb611a3",
+      "command": [
+        "/Users/mrwhite0racle/.local/share/uv/tools/harbor/bin/python3",
+        "/Users/mrwhite0racle/Deliberate/scripts/native_harness.py",
+        "harbor",
+        "/Users/mrwhite0racle/.local/bin/harbor",
+        "run",
+        "-c",
+        "/Users/mrwhite0racle/Deliberate/runs/tb2-best/configs/terminal-bench-2__noop-glm53-best__log-summary-date-ranges__r1__20260910T031755Z-e996d105.yaml",
+        "-y"
+      ],
+      "job_dir": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__noop-glm53-best__log-summary-date-ranges__r1__20260910T031755Z-e996d105",
+      "injected_session_id": null,
+      "exec_guard": {
+        "policy_digest": "9c5ffe3304d8c97db60fcd7dc4b025d1e29919c5a741106f42c9366ef05b08b0",
+        "target_digest": "851d3aeeca959bdcaffbc35e465f778ebdf05925e06d594b0eefc776fa9c13e3",
+        "event_log": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__noop-glm53-best__log-summary-date-ranges__r1__20260910T031755Z-e996d105/native-harness-events.jsonl",
+        "breach_log": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__noop-glm53-best__log-summary-date-ranges__r1__20260910T031755Z-e996d105/native-harness-breaches.jsonl",
+        "installed": true,
+        "ready": true,
+        "contained_execs": 0,
+        "containment_elapsed_sec": [],
+        "unsupported": [],
+        "breaches": []
+      },
+      "trace_before": {
+        "path": "/Users/mrwhite0racle/Deliberate/runs/cloudflare.jsonl",
+        "exists": true,
+        "bytes": 860320,
+        "lines": 291,
+        "sha256": "808a92573a59d36d4c8b3bc57e29a2fdb0fad11d3ba583cc1c44801216848ee0"
+      },
+      "started_at": "2026-09-10T05:55:13.726242+00:00",
+      "finished_at": "2026-09-10T06:00:13.556024+00:00",
+      "exit_code": 0,
+      "trace_after": {
+        "path": "/Users/mrwhite0racle/Deliberate/runs/cloudflare.jsonl",
+        "exists": true,
+        "bytes": 885393,
+        "lines": 302,
+        "sha256": "d864a1b8349474e3f504a36c5f354ee9e42ec3eabc98a6e4d05c92a9882271cb"
+      },
+      "trials_found": 1
+    }
+  ],
+  "trials": [
+    {
+      "order": 1,
+      "trial_key": "terminal-bench-2/ctl/glm53-best/sqlite-db-truncate/r1",
+      "condition": "ctl/glm53-best",
+      "family": "glm53-best",
+      "mode": "ctl",
+      "task": "sqlite-db-truncate",
+      "repeat": 1,
+      "tag": "pilot",
+      "trial_name": "sqlite-db-truncate__gXEkfrh",
+      "trial_dir": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__ctl-glm53-best__sqlite-db-truncate__r1__20260910T031755Z-e996d105/sqlite-db-truncate__gXEkfrh",
+      "result_json": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__ctl-glm53-best__sqlite-db-truncate__r1__20260910T031755Z-e996d105/sqlite-db-truncate__gXEkfrh/result.json",
+      "trial_id": "4575241a-b418-43b0-a223-b7701e2bebfa",
+      "task_checksum": "149c8061043d593a987eea4a61d9d24a772957a7ddee70414574b70dafbe4b30",
+      "harness_model_name": "hosted_vllm/ctl/glm53-best",
+      "condition_from_harness": "ctl/glm53-best",
+      "rewards": {
+        "reward": 1.0
+      },
+      "exception_type": null,
+      "exception_message": null,
+      "n_agent_steps": null,
+      "agent_usage": {
+        "n_input_tokens": 415459,
+        "n_output_tokens": 69579,
+        "cost_usd": 0.0
+      },
+      "started_at": "2026-09-10T03:17:56.538529Z",
+      "finished_at": "2026-09-10T03:32:34.501311Z",
+      "agent_execution": {
+        "started_at": "2026-09-10T03:20:17.245682Z",
+        "finished_at": "2026-09-10T03:32:19.617913Z"
+      },
+      "artifacts": {
+        "ctrf.json": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__ctl-glm53-best__sqlite-db-truncate__r1__20260910T031755Z-e996d105/sqlite-db-truncate__gXEkfrh/verifier/ctrf.json",
+        "trajectory.json": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__ctl-glm53-best__sqlite-db-truncate__r1__20260910T031755Z-e996d105/sqlite-db-truncate__gXEkfrh/agent/trajectory.json"
+      },
+      "status": "scored",
+      "job_name": "terminal-bench-2__ctl-glm53-best__sqlite-db-truncate__r1__20260910T031755Z-e996d105",
+      "condition_mismatch": false,
+      "session_id": "sqlite-db-truncate__gXEkfrh__agent"
+    },
+    {
+      "order": 2,
+      "trial_key": "terminal-bench-2/rp/glm53-best/sqlite-db-truncate/r1",
+      "condition": "rp/glm53-best",
+      "family": "glm53-best",
+      "mode": "rp",
+      "task": "sqlite-db-truncate",
+      "repeat": 1,
+      "tag": "pilot",
+      "trial_name": "sqlite-db-truncate__aU8SHrm",
+      "trial_dir": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__rp-glm53-best__sqlite-db-truncate__r1__20260910T031755Z-e996d105/sqlite-db-truncate__aU8SHrm",
+      "result_json": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__rp-glm53-best__sqlite-db-truncate__r1__20260910T031755Z-e996d105/sqlite-db-truncate__aU8SHrm/result.json",
+      "trial_id": "4bda71b2-2fe5-4401-9a2a-15330d7b2fa3",
+      "task_checksum": "149c8061043d593a987eea4a61d9d24a772957a7ddee70414574b70dafbe4b30",
+      "harness_model_name": "hosted_vllm/rp/glm53-best",
+      "condition_from_harness": "rp/glm53-best",
+      "rewards": {
+        "reward": 1.0
+      },
+      "exception_type": null,
+      "exception_message": null,
+      "n_agent_steps": null,
+      "agent_usage": {
+        "n_input_tokens": 187679,
+        "n_output_tokens": 91730,
+        "cost_usd": 0.0
+      },
+      "started_at": "2026-09-10T03:32:38.861741Z",
+      "finished_at": "2026-09-10T03:45:39.959515Z",
+      "agent_execution": {
+        "started_at": "2026-09-10T03:34:07.739441Z",
+        "finished_at": "2026-09-10T03:45:23.091585Z"
+      },
+      "artifacts": {
+        "ctrf.json": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__rp-glm53-best__sqlite-db-truncate__r1__20260910T031755Z-e996d105/sqlite-db-truncate__aU8SHrm/verifier/ctrf.json",
+        "trajectory.json": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__rp-glm53-best__sqlite-db-truncate__r1__20260910T031755Z-e996d105/sqlite-db-truncate__aU8SHrm/agent/trajectory.json"
+      },
+      "status": "scored",
+      "job_name": "terminal-bench-2__rp-glm53-best__sqlite-db-truncate__r1__20260910T031755Z-e996d105",
+      "condition_mismatch": false,
+      "session_id": "sqlite-db-truncate__aU8SHrm__agent"
+    },
+    {
+      "order": 3,
+      "trial_key": "terminal-bench-2/noop/glm53-best/sqlite-db-truncate/r1",
+      "condition": "noop/glm53-best",
+      "family": "glm53-best",
+      "mode": "noop",
+      "task": "sqlite-db-truncate",
+      "repeat": 1,
+      "tag": "pilot",
+      "trial_name": "sqlite-db-truncate__QPDEg5e",
+      "trial_dir": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__noop-glm53-best__sqlite-db-truncate__r1__20260910T031755Z-e996d105/sqlite-db-truncate__QPDEg5e",
+      "result_json": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__noop-glm53-best__sqlite-db-truncate__r1__20260910T031755Z-e996d105/sqlite-db-truncate__QPDEg5e/result.json",
+      "trial_id": "cdeb036f-2eb9-43ec-8d7f-4fb6da74037f",
+      "task_checksum": "149c8061043d593a987eea4a61d9d24a772957a7ddee70414574b70dafbe4b30",
+      "harness_model_name": "hosted_vllm/noop/glm53-best",
+      "condition_from_harness": "noop/glm53-best",
+      "rewards": {
+        "reward": 1.0
+      },
+      "exception_type": null,
+      "exception_message": null,
+      "n_agent_steps": null,
+      "agent_usage": {
+        "n_input_tokens": 529641,
+        "n_output_tokens": 92357,
+        "cost_usd": 0.0
+      },
+      "started_at": "2026-09-10T03:45:44.284829Z",
+      "finished_at": "2026-09-10T03:59:48.502162Z",
+      "agent_execution": {
+        "started_at": "2026-09-10T03:47:43.433303Z",
+        "finished_at": "2026-09-10T03:59:29.048854Z"
+      },
+      "artifacts": {
+        "ctrf.json": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__noop-glm53-best__sqlite-db-truncate__r1__20260910T031755Z-e996d105/sqlite-db-truncate__QPDEg5e/verifier/ctrf.json",
+        "trajectory.json": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__noop-glm53-best__sqlite-db-truncate__r1__20260910T031755Z-e996d105/sqlite-db-truncate__QPDEg5e/agent/trajectory.json"
+      },
+      "status": "scored",
+      "job_name": "terminal-bench-2__noop-glm53-best__sqlite-db-truncate__r1__20260910T031755Z-e996d105",
+      "condition_mismatch": false,
+      "session_id": "sqlite-db-truncate__QPDEg5e__agent"
+    },
+    {
+      "order": 4,
+      "trial_key": "terminal-bench-2/ctl/glm53-best/query-optimize/r1",
+      "condition": "ctl/glm53-best",
+      "family": "glm53-best",
+      "mode": "ctl",
+      "task": "query-optimize",
+      "repeat": 1,
+      "tag": "pilot",
+      "trial_name": "query-optimize__dmb9Sy8",
+      "trial_dir": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__ctl-glm53-best__query-optimize__r1__20260910T031755Z-e996d105/query-optimize__dmb9Sy8",
+      "result_json": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__ctl-glm53-best__query-optimize__r1__20260910T031755Z-e996d105/query-optimize__dmb9Sy8/result.json",
+      "trial_id": "1d8af7c8-4e1d-4c5e-ba8f-e316aa78f64e",
+      "task_checksum": "43d687659eb88cb6acddbebb08bce32ac974c1cd3d979a9af9da8f0f223ac1dc",
+      "harness_model_name": "hosted_vllm/ctl/glm53-best",
+      "condition_from_harness": "ctl/glm53-best",
+      "rewards": {
+        "reward": 0.0
+      },
+      "exception_type": "AgentTimeoutError",
+      "exception_message": "Agent execution timed out after 900.0 seconds",
+      "n_agent_steps": null,
+      "agent_usage": {
+        "n_input_tokens": 134607,
+        "n_output_tokens": 59528,
+        "cost_usd": 0.0
+      },
+      "started_at": "2026-09-10T03:59:53.433784Z",
+      "finished_at": "2026-09-10T04:35:44.069611Z",
+      "agent_execution": {
+        "started_at": "2026-09-10T04:02:00.162662Z",
+        "finished_at": "2026-09-10T04:17:03.513977Z"
+      },
+      "artifacts": {
+        "ctrf.json": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__ctl-glm53-best__query-optimize__r1__20260910T031755Z-e996d105/query-optimize__dmb9Sy8/verifier/ctrf.json",
+        "trajectory.json": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__ctl-glm53-best__query-optimize__r1__20260910T031755Z-e996d105/query-optimize__dmb9Sy8/agent/trajectory.json"
+      },
+      "status": "scored",
+      "job_name": "terminal-bench-2__ctl-glm53-best__query-optimize__r1__20260910T031755Z-e996d105",
+      "condition_mismatch": false,
+      "session_id": "query-optimize__dmb9Sy8__agent"
+    },
+    {
+      "order": 5,
+      "trial_key": "terminal-bench-2/rp/glm53-best/query-optimize/r1",
+      "condition": "rp/glm53-best",
+      "family": "glm53-best",
+      "mode": "rp",
+      "task": "query-optimize",
+      "repeat": 1,
+      "tag": "pilot",
+      "trial_name": "query-optimize__wBhGWmc",
+      "trial_dir": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__rp-glm53-best__query-optimize__r1__20260910T031755Z-e996d105/query-optimize__wBhGWmc",
+      "result_json": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__rp-glm53-best__query-optimize__r1__20260910T031755Z-e996d105/query-optimize__wBhGWmc/result.json",
+      "trial_id": "8bdf2df3-741e-452b-a570-e10f6150be75",
+      "task_checksum": "43d687659eb88cb6acddbebb08bce32ac974c1cd3d979a9af9da8f0f223ac1dc",
+      "harness_model_name": "hosted_vllm/rp/glm53-best",
+      "condition_from_harness": "rp/glm53-best",
+      "rewards": {
+        "reward": 0.0
+      },
+      "exception_type": "AgentTimeoutError",
+      "exception_message": "Agent execution timed out after 900.0 seconds",
+      "n_agent_steps": null,
+      "agent_usage": {
+        "n_input_tokens": 194013,
+        "n_output_tokens": 55338,
+        "cost_usd": 0.0
+      },
+      "started_at": "2026-09-10T04:35:47.887134Z",
+      "finished_at": "2026-09-10T05:05:00.219333Z",
+      "agent_execution": {
+        "started_at": "2026-09-10T04:37:26.421954Z",
+        "finished_at": "2026-09-10T04:52:29.013242Z"
+      },
+      "artifacts": {
+        "ctrf.json": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__rp-glm53-best__query-optimize__r1__20260910T031755Z-e996d105/query-optimize__wBhGWmc/verifier/ctrf.json",
+        "trajectory.json": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__rp-glm53-best__query-optimize__r1__20260910T031755Z-e996d105/query-optimize__wBhGWmc/agent/trajectory.json"
+      },
+      "status": "scored",
+      "job_name": "terminal-bench-2__rp-glm53-best__query-optimize__r1__20260910T031755Z-e996d105",
+      "condition_mismatch": false,
+      "session_id": "query-optimize__wBhGWmc__agent"
+    },
+    {
+      "order": 6,
+      "trial_key": "terminal-bench-2/noop/glm53-best/query-optimize/r1",
+      "condition": "noop/glm53-best",
+      "family": "glm53-best",
+      "mode": "noop",
+      "task": "query-optimize",
+      "repeat": 1,
+      "tag": "pilot",
+      "trial_name": "query-optimize__GShsH7v",
+      "trial_dir": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__noop-glm53-best__query-optimize__r1__20260910T031755Z-e996d105/query-optimize__GShsH7v",
+      "result_json": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__noop-glm53-best__query-optimize__r1__20260910T031755Z-e996d105/query-optimize__GShsH7v/result.json",
+      "trial_id": "b2df5507-c29a-4c9f-886b-0ac823d5675d",
+      "task_checksum": "43d687659eb88cb6acddbebb08bce32ac974c1cd3d979a9af9da8f0f223ac1dc",
+      "harness_model_name": "hosted_vllm/noop/glm53-best",
+      "condition_from_harness": "noop/glm53-best",
+      "rewards": {
+        "reward": 0.0
+      },
+      "exception_type": "AgentTimeoutError",
+      "exception_message": "Agent execution timed out after 900.0 seconds",
+      "n_agent_steps": null,
+      "agent_usage": {
+        "n_input_tokens": 106914,
+        "n_output_tokens": 45381,
+        "cost_usd": 0.0
+      },
+      "started_at": "2026-09-10T05:05:03.997051Z",
+      "finished_at": "2026-09-10T05:33:44.549831Z",
+      "agent_execution": {
+        "started_at": "2026-09-10T05:06:28.616944Z",
+        "finished_at": "2026-09-10T05:21:32.065464Z"
+      },
+      "artifacts": {
+        "ctrf.json": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__noop-glm53-best__query-optimize__r1__20260910T031755Z-e996d105/query-optimize__GShsH7v/verifier/ctrf.json",
+        "trajectory.json": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__noop-glm53-best__query-optimize__r1__20260910T031755Z-e996d105/query-optimize__GShsH7v/agent/trajectory.json"
+      },
+      "status": "scored",
+      "job_name": "terminal-bench-2__noop-glm53-best__query-optimize__r1__20260910T031755Z-e996d105",
+      "condition_mismatch": false,
+      "session_id": "query-optimize__GShsH7v__agent"
+    },
+    {
+      "order": 7,
+      "trial_key": "terminal-bench-2/ctl/glm53-best/log-summary-date-ranges/r1",
+      "condition": "ctl/glm53-best",
+      "family": "glm53-best",
+      "mode": "ctl",
+      "task": "log-summary-date-ranges",
+      "repeat": 1,
+      "tag": "pilot",
+      "trial_name": "log-summary-date-ranges__9aUDbQU",
+      "trial_dir": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__ctl-glm53-best__log-summary-date-ranges__r1__20260910T031755Z-e996d105/log-summary-date-ranges__9aUDbQU",
+      "result_json": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__ctl-glm53-best__log-summary-date-ranges__r1__20260910T031755Z-e996d105/log-summary-date-ranges__9aUDbQU/result.json",
+      "trial_id": "1ceb1d68-4f96-4722-9ff3-76f78eb0176d",
+      "task_checksum": "f661ef345f023ef5a2dcdd056c353a1a2bbce29a70b04765c615c25e91b6b662",
+      "harness_model_name": "hosted_vllm/ctl/glm53-best",
+      "condition_from_harness": "ctl/glm53-best",
+      "rewards": {
+        "reward": 1.0
+      },
+      "exception_type": null,
+      "exception_message": null,
+      "n_agent_steps": null,
+      "agent_usage": {
+        "n_input_tokens": 196189,
+        "n_output_tokens": 7683,
+        "cost_usd": 0.0
+      },
+      "started_at": "2026-09-10T05:33:48.236823Z",
+      "finished_at": "2026-09-10T05:38:47.591268Z",
+      "agent_execution": {
+        "started_at": "2026-09-10T05:35:13.128917Z",
+        "finished_at": "2026-09-10T05:38:35.091233Z"
+      },
+      "artifacts": {
+        "ctrf.json": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__ctl-glm53-best__log-summary-date-ranges__r1__20260910T031755Z-e996d105/log-summary-date-ranges__9aUDbQU/verifier/ctrf.json",
+        "trajectory.json": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__ctl-glm53-best__log-summary-date-ranges__r1__20260910T031755Z-e996d105/log-summary-date-ranges__9aUDbQU/agent/trajectory.json"
+      },
+      "status": "scored",
+      "job_name": "terminal-bench-2__ctl-glm53-best__log-summary-date-ranges__r1__20260910T031755Z-e996d105",
+      "condition_mismatch": false,
+      "session_id": "log-summary-date-ranges__9aUDbQU__agent"
+    },
+    {
+      "order": 8,
+      "trial_key": "terminal-bench-2/rp/glm53-best/log-summary-date-ranges/r1",
+      "condition": "rp/glm53-best",
+      "family": "glm53-best",
+      "mode": "rp",
+      "task": "log-summary-date-ranges",
+      "repeat": 1,
+      "tag": "pilot",
+      "trial_name": "log-summary-date-ranges__SkCXrGa",
+      "trial_dir": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__rp-glm53-best__log-summary-date-ranges__r1__20260910T031755Z-e996d105/log-summary-date-ranges__SkCXrGa",
+      "result_json": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__rp-glm53-best__log-summary-date-ranges__r1__20260910T031755Z-e996d105/log-summary-date-ranges__SkCXrGa/result.json",
+      "trial_id": "e94833dc-0e20-40f9-bc98-a37e64b932d2",
+      "task_checksum": "f661ef345f023ef5a2dcdd056c353a1a2bbce29a70b04765c615c25e91b6b662",
+      "harness_model_name": "hosted_vllm/rp/glm53-best",
+      "condition_from_harness": "rp/glm53-best",
+      "rewards": {
+        "reward": 1.0
+      },
+      "exception_type": null,
+      "exception_message": null,
+      "n_agent_steps": null,
+      "agent_usage": {
+        "n_input_tokens": 369795,
+        "n_output_tokens": 47262,
+        "cost_usd": 0.0
+      },
+      "started_at": "2026-09-10T05:38:51.116976Z",
+      "finished_at": "2026-09-10T05:55:11.460076Z",
+      "agent_execution": {
+        "started_at": "2026-09-10T05:40:14.628885Z",
+        "finished_at": "2026-09-10T05:54:57.936467Z"
+      },
+      "artifacts": {
+        "ctrf.json": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__rp-glm53-best__log-summary-date-ranges__r1__20260910T031755Z-e996d105/log-summary-date-ranges__SkCXrGa/verifier/ctrf.json",
+        "trajectory.json": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__rp-glm53-best__log-summary-date-ranges__r1__20260910T031755Z-e996d105/log-summary-date-ranges__SkCXrGa/agent/trajectory.json"
+      },
+      "status": "scored",
+      "job_name": "terminal-bench-2__rp-glm53-best__log-summary-date-ranges__r1__20260910T031755Z-e996d105",
+      "condition_mismatch": false,
+      "session_id": "log-summary-date-ranges__SkCXrGa__agent"
+    },
+    {
+      "order": 9,
+      "trial_key": "terminal-bench-2/noop/glm53-best/log-summary-date-ranges/r1",
+      "condition": "noop/glm53-best",
+      "family": "glm53-best",
+      "mode": "noop",
+      "task": "log-summary-date-ranges",
+      "repeat": 1,
+      "tag": "pilot",
+      "trial_name": "log-summary-date-ranges__HhPHzAG",
+      "trial_dir": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__noop-glm53-best__log-summary-date-ranges__r1__20260910T031755Z-e996d105/log-summary-date-ranges__HhPHzAG",
+      "result_json": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__noop-glm53-best__log-summary-date-ranges__r1__20260910T031755Z-e996d105/log-summary-date-ranges__HhPHzAG/result.json",
+      "trial_id": "3ed23fdc-e100-4f61-a563-a80b1f964127",
+      "task_checksum": "f661ef345f023ef5a2dcdd056c353a1a2bbce29a70b04765c615c25e91b6b662",
+      "harness_model_name": "hosted_vllm/noop/glm53-best",
+      "condition_from_harness": "noop/glm53-best",
+      "rewards": {
+        "reward": 1.0
+      },
+      "exception_type": null,
+      "exception_message": null,
+      "n_agent_steps": null,
+      "agent_usage": {
+        "n_input_tokens": 110901,
+        "n_output_tokens": 11025,
+        "cost_usd": 0.0
+      },
+      "started_at": "2026-09-10T05:55:14.835496Z",
+      "finished_at": "2026-09-10T06:00:11.153803Z",
+      "agent_execution": {
+        "started_at": "2026-09-10T05:56:34.860221Z",
+        "finished_at": "2026-09-10T05:59:57.515048Z"
+      },
+      "artifacts": {
+        "ctrf.json": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__noop-glm53-best__log-summary-date-ranges__r1__20260910T031755Z-e996d105/log-summary-date-ranges__HhPHzAG/verifier/ctrf.json",
+        "trajectory.json": "/Users/mrwhite0racle/Deliberate/runs/tb2-best/terminal-bench-2__noop-glm53-best__log-summary-date-ranges__r1__20260910T031755Z-e996d105/log-summary-date-ranges__HhPHzAG/agent/trajectory.json"
+      },
+      "status": "scored",
+      "job_name": "terminal-bench-2__noop-glm53-best__log-summary-date-ranges__r1__20260910T031755Z-e996d105",
+      "condition_mismatch": false,
+      "session_id": "log-summary-date-ranges__HhPHzAG__agent"
+    }
+  ],
+  "failures": [],
+  "no_synthesis_note": "Missing results are listed above and are never zero-filled or imputed."
+}
