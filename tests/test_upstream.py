@@ -1300,3 +1300,66 @@ async def test_responses_server_error_envelope_is_transient(monkeypatch):
     c = await up.complete("ctl", MSGS)
 
     assert c.ok and calls == 2
+
+
+# --------------------------------------------------------------------------
+# reasoning budget: the one sampling-adjacent knob this project sets on purpose
+# --------------------------------------------------------------------------
+
+
+EFFORT: dict = {
+    "providers": CONFIG["providers"],
+    "backends": {
+        "ctl": {
+            "provider": "fake",
+            "model": "controller-1",
+            "params": {"reasoning_effort": "high", "reasoning": {"effort": "high"}},
+        }
+    },
+    "virtual_models": {"ctl": {"controller": "ctl", "reason_mode": "off"}},
+    "trace_path": None,
+}
+
+
+async def test_reasoning_budget_params_reach_the_wire(monkeypatch):
+    """Effort is the variable under test, so it must arrive verbatim.
+
+    Both spellings are in the wild - OpenAI-style `reasoning_effort` and the
+    nested `reasoning: {effort}` - and neither is proxy-owned, so the transport
+    forwards them unchanged while still owning model, messages and the tool
+    surface.
+    """
+    seen: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, json=OK_PAYLOAD)
+
+    up = upstream_for(monkeypatch, handler, EFFORT)
+    c = await up.complete("ctl", MSGS)
+
+    assert c.ok
+    assert seen[0]["reasoning_effort"] == "high"
+    assert seen[0]["reasoning"] == {"effort": "high"}
+    assert seen[0]["model"] == "controller-1" and seen[0]["messages"] == MSGS
+
+
+async def test_caller_cannot_override_declared_reasoning_budget_with_null(monkeypatch):
+    """A null override drops the key instead of sending JSON null upstream.
+
+    The experiment declares the budget in the roster; a caller that blanks it
+    would silently change the condition under test, so the wire shows the
+    absence rather than a null a provider might read as "default".
+    """
+    seen: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, json=OK_PAYLOAD)
+
+    up = upstream_for(monkeypatch, handler, EFFORT)
+    c = await up.complete("ctl", MSGS, overrides={"reasoning_effort": None})
+
+    assert c.ok
+    assert "reasoning_effort" not in seen[0]
+    assert seen[0]["reasoning"] == {"effort": "high"}

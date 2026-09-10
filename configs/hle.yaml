@@ -1,0 +1,123 @@
+# ReasonProxy -- Humanity's Last Exam roster (self-contained; new file).
+#
+# HLE is 2,500 independent single-turn questions, so it is the only benchmark in
+# this project that can supply the sample size a two-point effect needs
+# (2,500 paired trials detect >= 2.5 pp at 80% power; see
+# runs/onboarding/powered-evaluation-plan.md section 3).
+#
+# Three arms, one variable each against the arm above it:
+#   ctl/hle-glm53   official prompt, no machinery                 -> raw model
+#   noop/hle-glm53  official prompt + directive, no deliberation  -> instruction effect
+#   rp/hle-glm53    official prompt + directive + live ensemble   -> deliberation effect
+# The best-pilot result was that the directive alone carried the whole gain on
+# Terminal-Bench; noop is here to keep that alternative explanation measurable at
+# a sample size that can separate the two.
+#
+# Reasoning budget is the one sampling-adjacent parameter this project sets on
+# purpose: it is the mechanism under test ("augment the model's reasoning"), and
+# only final outputs ever leave a branch (src/reasonproxy/engine.py:1160-1162).
+# Every accepted key/value below MUST be re-probed against each provider before a
+# scored run and the outcome recorded in the manifest; providers disagree on both
+# the spelling and the ladder. No other sampling parameter is declared anywhere.
+#
+# Keys come from the environment, never this file.
+
+providers:
+  cf:
+    base_url: https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/v1
+    api_key_env: CLOUDFLARE_API_TOKEN
+    timeout_s: 900
+    max_attempts: 6
+  zen:
+    base_url: https://opencode.ai/zen/v1
+    api_key_env: OPENCODE_API_KEY
+    timeout_s: 900
+    max_attempts: 8
+  openrouter:
+    base_url: https://openrouter.ai/api/v1
+    api_key_env: OPENROUTER_API_KEY
+    timeout_s: 900
+    max_attempts: 8
+
+backends:
+  # ---------------------------------------------------------------- controller
+  # One controller across all three arms: the arms differ only in what the proxy
+  # does around it, never in who answers.
+  ctl-hle-glm53:
+    provider: cf
+    model: "@cf/zai-org/glm-5.3"
+    params: {reasoning_effort: high}
+
+  # ------------------------------------------------------------------ branches
+  # Four families, role-differentiated. Cross-family diversity is what the MoA
+  # and debate literature says drives ensemble gain, and the roles sweep showed
+  # all four role slots do engage (9/9/9/9 branch calls).
+  br-hle-glm53:
+    provider: cf
+    model: "@cf/zai-org/glm-5.3"
+    params: {reasoning_effort: high}
+  br-hle-deepseek:
+    provider: cf
+    model: "@cf/deepseek-ai/deepseek-v4-pro-0813"
+    params: {reasoning_effort: high}
+  br-hle-ultra:
+    provider: zen
+    model: nemotron-3-ultra-free
+    params: {reasoning_effort: high}
+  br-hle-flash:
+    provider: cf
+    model: "@cf/zai-org/glm-5.3-flash"
+    params: {reasoning_effort: high}
+
+  # ------------------------------------------------------------------- reducer
+  # Mercury: 8/8 reductions accepted with zero degradation in the swap pilot,
+  # against Super's 7 HTTP 500/503 flakes under load. Reliability, not measured
+  # aggregation quality - the swap pilot tied 2/3 vs 2/3.
+  red-hle-mercury:
+    provider: openrouter
+    model: inception/mercury-2.5
+    params: {reasoning_effort: high}
+
+  # --------------------------------------------------------------------- judge
+  # Grading must not vary with the arm under test, so the judge is one fixed
+  # model reached through a passthrough alias, never a deliberating one. It is
+  # the only backend here with no reasoning budget declared: the official judge
+  # prompt is an extraction-and-match task, not a reasoning task, and a thinking
+  # judge would spend the 4k judge budget on scratchpad instead of the verdict.
+  judge-hle-mercury:
+    provider: openrouter
+    model: inception/mercury-2.5
+
+virtual_models:
+  ctl/hle-glm53:
+    controller: ctl-hle-glm53
+    reason_mode: "off"
+
+  noop/hle-glm53:
+    controller: ctl-hle-glm53
+    reason_mode: noop
+    controller_prompt: deliberate-directed
+    max_reason_calls: 1
+
+  rp/hle-glm53:
+    controller: ctl-hle-glm53
+    reason_mode: live
+    controller_prompt: deliberate-directed
+    branches: [br-hle-glm53, br-hle-deepseek, br-hle-ultra, br-hle-flash]
+    branch_prompt: roles
+    branch_roles: [challenger, alternative, evidence, checker]
+    reducer: red-hle-mercury
+    min_branches: 3
+    # One question, one deliberation: HLE is single-turn, so a second call would
+    # only re-deliberate an unchanged state.
+    max_reason_calls: 1
+    branch_timeout_s: 600
+    persistence: assistant_tags
+
+  ctl/hle-judge:
+    controller: judge-hle-mercury
+    reason_mode: "off"
+
+# Separate trace: HLE observations join predictions against this file only.
+trace_path: runs/hle.jsonl
+trace_texts: false
