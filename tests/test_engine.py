@@ -388,6 +388,31 @@ async def test_undirected_v4_appends_no_directive():
     assert "directed" not in trace
 
 
+async def test_noop_directed_mirrors_directive_presence():
+    from reasonproxy.prompts import DIRECTIVE_NUDGE_V1
+
+    eng, stub = engine({"ctrl": [ok("ctrl", "done", [shell_call("ls")], "tool_calls")]})
+    cfg = Config.model_validate(
+        {
+            "providers": {"fake": {"base_url": "http://x/v1", "api_key_env": "FAKE_KEY"}},
+            "backends": {"ctrl": {"provider": "fake", "model": "controller-1"}},
+            "virtual_models": {
+                "vm-noop-directed": {
+                    "controller": "ctrl",
+                    "reason_mode": "noop",
+                    "controller_prompt": "deliberate-directed",
+                    "max_reason_calls": 2,
+                }
+            },
+            "trace_path": None,
+        }
+    )
+    noop_eng = Engine(cfg, stub)  # type: ignore[arg-type]
+    _, trace = await noop_eng.complete(dict(REQ), "vm-noop-directed")
+    sent = stub.of("ctrl")[0]["messages"]
+    assert sent[-1] == {"role": "user", "content": DIRECTIVE_NUDGE_V1}
+    assert trace["prompt_revisions"]["directive"]["id"] == "directive-nudge-v1"
+
 # --------------------------------------------------------------------------- #
 # caller parameters are the caller's
 # --------------------------------------------------------------------------- #

@@ -79,9 +79,10 @@ providers:
 backends:
   # ---------------------------------------------------------------- controllers
   # One per acting agent, shared verbatim by that family's ctl/noop/rp aliases.
-  # temperature is the only declared parameter and acts as a default only: a
-  # caller that sends its own sampling parameters (mini-swe-agent does) wins,
-  # because caller parameters take precedence over backend params.
+  # No sampling parameters are declared on any backend: provider defaults
+  # apply everywhere (policy since 2026-09-10; earlier runs used temperature
+  # defaults and are labeled as such in their records). A caller that sends
+  # its own sampling parameters wins for that call only.
   #
   # parallel_tool_calls is caller-controlled; the actual live request shape
   # passed the checks above. The engine never executes real tools alongside
@@ -89,15 +90,12 @@ backends:
   ctrl-cf-super:
     provider: cf
     model: "@cf/nvidia/nemotron-3-120b-a12b"   # Nemotron 3 Super, open weights
-    params: {temperature: 0.0}
   ctrl-zen-lightning:
     provider: zen
     model: nemotron-3.5-lightning-free         # open weights (models.dev)
-    params: {temperature: 0.0}
   ctrl-zen-mimo:
     provider: zen
     model: mimo-v2.5-free                      # open weights (models.dev)
-    params: {temperature: 0.0}
 
   # ------------------------------------------------- branches (group 1 rp/*)
   # The group-1 branch roster, used by all three of rp/cf-super,
@@ -106,19 +104,18 @@ backends:
   # providers, four continuations. (The *-available aliases use their own
   # roster, below.)
   #
-  #   br-cf-super       @cf/nvidia/nemotron-3-120b-a12b  Nemotron  CF   t=0.7
-  #   br-zen-lightning  nemotron-3.5-lightning-free      Nemotron  Zen  t=0.7
-  #   br-zen-mimo-a     mimo-v2.5-free                   MiMo      Zen  t=0.7
-  #   br-zen-mimo-b     mimo-v2.5-free                   MiMo      Zen  t=1.0
+  #   br-cf-super       @cf/nvidia/nemotron-3-120b-a12b  Nemotron  CF
+  #   br-zen-lightning  nemotron-3.5-lightning-free      Nemotron  Zen
+  #   br-zen-mimo-a     mimo-v2.5-free                   MiMo      Zen
   #
   # Super and Lightning are both Nemotron, so the roster is 3 models / 2
   # families -- two samples per family, not three families.
   #
-  # The fourth slot is a second MiMo sample at a different temperature. That is
-  # a declared condition choice, not an evidence ranking: native tool calling,
-  # history replay and json_object output are live-verified for all three
-  # models. Widening the sampled distribution comes from these backend params
-  # only, since caller sampling parameters reach the controller call alone.
+  # The fourth slot is a second MiMo sample. That is a declared condition
+  # choice, not an evidence ranking: native tool calling, history replay and
+  # json_object output are live-verified for all three models. Samples differ
+  # by provider nondeterminism only; caller sampling parameters reach the
+  # controller call alone.
   #
   # Declared confounds of this roster: rp/cf-super and rp/zen-lightning each
   # face a branch running their own controller model, rp/zen-mimo faces two,
@@ -129,50 +126,43 @@ backends:
   br-cf-super:
     provider: cf
     model: "@cf/nvidia/nemotron-3-120b-a12b"
-    params: {temperature: 0.7}
   br-zen-lightning:
     provider: zen
     model: nemotron-3.5-lightning-free
-    params: {temperature: 0.7}
   br-zen-mimo-a:
     provider: zen
     model: mimo-v2.5-free
-    params: {temperature: 0.7}
   br-zen-mimo-b:
     provider: zen
     model: mimo-v2.5-free
-    params: {temperature: 1.0}
 
   # ------------------------------------------- availability-amendment branches
   # Used only by the *-available aliases: the hot samples that complete a
-  # 2 CF Super + 2 Zen Lightning roster at temperatures 0.7 and 1.0 for each
-  # model (br-cf-super and br-zen-lightning above are the 0.7 samples). Both
-  # models are Nemotron, so that ensemble is single-family by construction.
+  # 2 CF Super + 2 Zen Lightning roster (br-cf-super-hot and
+  # br-zen-lightning-hot are retained identical duplicates since sampling was
+  # removed; kept for record continuity, not for any behavioral difference).
+  # Both models are Nemotron, so that ensemble is single-family by construction.
   # Both are live-verified for native tool call, history replay and
   # json_object output.
   br-cf-super-hot:
     provider: cf
     model: "@cf/nvidia/nemotron-3-120b-a12b"
-    params: {temperature: 1.0}
   br-zen-lightning-hot:
     provider: zen
     model: nemotron-3.5-lightning-free
-    params: {temperature: 1.0}
 
   # ------------------------------------------------------------------- reducers
   # The information bottleneck, and serial after the slowest branch. The engine
   # sets response_format={"type": "json_object"} on the reducer call itself, so
   # it must NOT be declared here. json_object output is live-verified for all
   # three roster models, so MiMo is the declared group-1 choice, not the only
-  # option. temperature 0.0 makes the collapse as reproducible as the provider
-  # allows.
+  # option. No sampling parameters are declared: provider defaults apply.
   #
   # MiMo also runs two of the four group-1 branches, so reducer in-set
   # self-preference is a real confound there. Recorded, not hidden.
   red-zen-mimo:
     provider: zen
     model: mimo-v2.5-free
-    params: {temperature: 0.0}
 
   # Reducer for the *-available aliases: MiMo is unreachable while it returns
   # 429 FreeUsageLimitError, and CF Super's json_object output is live-verified
@@ -182,7 +172,6 @@ backends:
   red-cf-super:
     provider: cf
     model: "@cf/nvidia/nemotron-3-120b-a12b"
-    params: {temperature: 0.0}
 
   # max_concurrent is left at the schema default (4) for every backend. Rate
   # gates are shared per (provider, model) and take the minimum across aliases,
@@ -296,7 +285,7 @@ virtual_models:
     controller: ctrl-cf-super
     reason_mode: live
     controller_prompt: concise
-    # 2 CF Super + 2 Zen Lightning; temperatures 0.7 and 1.0 per model.
+    # 2 CF Super + 2 Zen Lightning.
     branches: [br-cf-super, br-cf-super-hot, br-zen-lightning, br-zen-lightning-hot]
     reducer: red-cf-super
     min_branches: 4

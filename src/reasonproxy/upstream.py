@@ -28,6 +28,7 @@ import json
 import random
 import re
 import time
+import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -489,7 +490,9 @@ class Upstream:
         overrides: dict[str, Any] | None = None,
     ) -> Completion:
         be: Backend = self.cfg.backends[backend_name]
-        body = _body(be, messages, tools, tool_choice, overrides)
+        proto = self.cfg.providers[be.provider].protocol
+        path, build = ("/responses", _rbody) if proto == "responses" else ("/chat/completions", _body)
+        body = build(be, messages, tools, tool_choice, overrides)
         # One conversation for every attempt: a retry is the same turn.
         headers = self._headers(be.provider, messages)
 
@@ -505,9 +508,7 @@ class Upstream:
             retry_after = 0.0
             try:
                 async with gate:
-                    r = await self._client(be.provider).post(
-                        "/chat/completions", json=body, headers=headers
-                    )
+                    r = await self._client(be.provider).post(path, json=body, headers=headers)
             except httpx.TimeoutException as exc:
                 result = Completion.failed(
                     backend_name, be.model, "timeout",
@@ -530,10 +531,21 @@ class Upstream:
                     result = Completion.failed(
                         backend_name, be.model, "error", detail, _ms(t0), attempt
                     )
+                    result.usage = _rusage(raw.get("usage")) if proto == "responses" else _dict(raw.get("usage"))
                     retryable = (
                         r.status_code in RETRY_STATUS
                         or (r.status_code < 400 and _transient_envelope(raw))
                     ) and not hard_quota
+                elif proto == "responses":
+                    result = _rparse(r, backend_name, be, _ms(t0), attempt, data=data)
+                    # A 200 that carries no turn, or one the provider itself
+                    # marks failed, is worth one more attempt; a malformed
+                    # shape is a diagnosis, not something a retry fixes.
+                    retryable = result.status != "ok" and (
+                        (result.error or "").startswith("empty output")
+                        or (result.error or "").startswith("provider status=failed")
+                    )
+                    result.usage = _rusage(raw.get("usage"))
                 else:
                     result = _parse(r, backend_name, be, _ms(t0), attempt, data=data)
                     missing_turn = not isinstance(raw.get("choices"), list) or not raw["choices"]
@@ -546,7 +558,7 @@ class Upstream:
                     if result.ok and provider_error:
                         result.status = "error"
                         result.error = "provider returned finish_reason=error"
-                result.usage = _dict(raw.get("usage"))
+                    result.usage = _dict(raw.get("usage"))
                 retry_after = _retry_after(r.headers.get("Retry-After"))
             if not retryable or attempt == max_attempts:
                 result.discarded_usage = discarded
@@ -623,6 +635,113 @@ def _body(
         body["tool_choice"] = tool_choice
     return body
 
+def _rbody(
+    be: Backend,
+    messages: list[dict[str, Any]],
+    tools: list[dict[str, Any]] | None,
+    tool_choice: Any,
+    overrides: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Same contract as _body, shaped for the Responses API.
+
+    Backend params first, caller overrides second, proxy-owned wiring last.
+    The reducer's `response_format: {"type": "json_object"}` override becomes
+    `text.format`; any other response_format shape passes through inside
+    `text.format` for the provider to accept or reject. A named chat-style
+    tool_choice is translated to the responses function-choice shape.
+    """
+    merged = {**be.params, **(overrides or {})}
+    fmt = merged.pop("response_format", None)
+    body = {k: v for k, v in merged.items() if v is not None and k not in TRANSPORT_OWNED}
+    body["model"] = be.model
+    body["input"] = _rinput(messages)
+    if tools:
+        body["tools"] = [_rtool(t) for t in tools]
+    if tool_choice is not None:
+        body["tool_choice"] = _rtool_choice(tool_choice)
+    if fmt is not None:
+        body["text"] = {"format": fmt}
+    return body
+
+
+def _rtool_choice(choice: Any) -> Any:
+    """Translate a chat-style named tool choice to the responses shape."""
+    if isinstance(choice, dict) and choice.get("type") == "function":
+        inner = choice.get("function")
+        if isinstance(inner, dict) and isinstance(inner.get("name"), str):
+            return {"type": "function", "name": inner["name"]}
+    return choice
+
+
+def _rtool(t: dict[str, Any]) -> dict[str, Any]:
+    """One chat-style function schema as a responses function tool."""
+    fn = _dict(t.get("function"))
+    return {
+        "type": "function",
+        "name": fn.get("name"),
+        "description": fn.get("description") or "",
+        "parameters": fn.get("parameters") or {},
+    }
+
+
+def _rcontent(value: Any) -> Any:
+    """Message content in responses input form, without dropping parts."""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        parts = []
+        for p in value:
+            if not isinstance(p, dict):
+                parts.append({"type": "input_text", "text": str(p)})
+            elif p.get("type") == "text" and isinstance(p.get("text"), str):
+                parts.append({"type": "input_text", "text": p["text"]})
+            elif p.get("type") == "image_url":
+                parts.append({"type": "input_image", "image_url": p.get("image_url")})
+            else:
+                parts.append({"type": "input_text", "text": str(p)})
+        return parts
+    return str(value)
+
+
+def _rinput(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Chat-shaped history as responses input items, losslessly for our roles.
+
+    Assistant turns keep their text as a message item and each tool call
+    becomes a function_call item; tool results become function_call_output
+    items. Anything the engine normalized (including translated prior turns)
+    round-trips through here on replay.
+    """
+    out: list[dict[str, Any]] = []
+    for m in messages:
+        role = m.get("role")
+        if role == "tool":
+            out.append(
+                {
+                    "type": "function_call_output",
+                    "call_id": m.get("tool_call_id"),
+                    "output": _rcontent(m.get("content")),
+                }
+            )
+            continue
+        content = _rcontent(m.get("content"))
+        calls = m.get("tool_calls") or []
+        if content != "" or not calls:
+            out.append({"role": role, "content": content})
+        for tc in calls:
+            fn = _dict((tc or {}).get("function"))
+            out.append(
+                {
+                    "type": "function_call",
+                    "call_id": (tc or {}).get("id") or "",
+                    "name": fn.get("name"),
+                    "arguments": fn.get("arguments") if isinstance(fn.get("arguments"), str) else "",
+                }
+            )
+    return out
+    return body
+
 
 def _parse(
     r: httpx.Response, backend: str, be: Backend, ms: int, attempts: int,
@@ -674,6 +793,107 @@ def _parse(
         latency_ms=ms,
         attempts=attempts,
         raw_message=msg,
+        raw_response=data,
+    )
+
+
+def _rusage(value: Any) -> dict[str, Any]:
+    """Responses usage in the accounting's token vocabulary, never invented."""
+    d = _dict(value)
+    out: dict[str, Any] = {}
+    prompt = _int(d.get("input_tokens"))
+    completion = _int(d.get("output_tokens"))
+    if prompt is not None:
+        out["prompt_tokens"] = prompt
+    if completion is not None:
+        out["completion_tokens"] = completion
+    return out
+
+
+def _rparse(
+    r: httpx.Response, backend: str, be: Backend, ms: int, attempts: int,
+    *, data: Any = _UNSET,
+) -> Completion:
+    """Turn a 2xx Responses body into a Completion, mirroring _parse.
+
+    Same strictness contract: a broken turn is a named failure, never a quiet
+    trim, and an error string never carries a response body. The returned
+    assistant message is normalized to the chat shape (content plus chat-style
+    tool calls) so history replay flows back through the same translation;
+    the untouched payload survives in `raw_response` for analysis.
+    """
+    if data is _UNSET:
+        try:
+            data = r.json()
+        except ValueError:
+            return Completion.failed(
+                backend, be.model, "error",
+                f"malformed response: body is not JSON ({len(r.content)} bytes)", ms, attempts,
+            )
+    if not isinstance(data, dict):
+        return _malformed(backend, be, f"top level is {_shape(data)}", ms, attempts)
+    if data.get("status") == "failed":
+        return Completion.failed(
+            backend, be.model, "error", "provider status=failed", ms, attempts,
+        )
+    output = data.get("output")
+    if not isinstance(output, list) or not output:
+        return Completion.failed(backend, be.model, "error", "empty output", ms, attempts)
+    texts: list[str] = []
+    refusal = ""
+    reasoning: list[str] = []
+    calls: list[dict[str, Any]] = []
+    for i, item in enumerate(output):
+        if not isinstance(item, dict):
+            return _malformed(backend, be, f"output[{i}] is {_shape(item)}", ms, attempts)
+        kind = item.get("type")
+        if kind == "message":
+            for block in item.get("content") or []:
+                if not isinstance(block, dict):
+                    continue
+                if block.get("type") == "output_text" and isinstance(block.get("text"), str):
+                    texts.append(block["text"])
+                elif block.get("type") == "refusal" and isinstance(block.get("refusal"), str):
+                    refusal = refusal or block["refusal"]
+        elif kind == "function_call":
+            name = item.get("name")
+            if not isinstance(name, str) or not name:
+                return _malformed(backend, be, f"output[{i}] has no function name", ms, attempts)
+            args = item.get("arguments", "")
+            if not isinstance(args, str):
+                return _malformed(backend, be, f"output[{i}] arguments are not a string", ms, attempts)
+            calls.append(
+                {
+                    "id": item.get("call_id") or "",
+                    "type": "function",
+                    "function": {"name": name, "arguments": args},
+                }
+            )
+        elif kind == "reasoning":
+            for part in item.get("summary") or []:
+                if isinstance(part, dict) and isinstance(part.get("text"), str):
+                    reasoning.append(part["text"])
+        # Other output items (web search calls and similar provider-side
+        # artifacts) are not agent turns; the raw payload keeps them.
+    content = "".join(texts) or refusal
+    finish = "stop" if data.get("status", "completed") == "completed" else "length"
+    if calls and finish == "stop":
+        finish = "tool_calls"
+    message: dict[str, Any] = {"role": "assistant", "content": content or None}
+    if calls:
+        message["tool_calls"] = calls
+    model = data.get("model")
+    return Completion(
+        backend=backend,
+        model=model if isinstance(model, str) and model else be.model,
+        content=content,
+        reasoning="\n".join(reasoning),
+        tool_calls=calls,
+        finish_reason=finish,
+        usage=_rusage(data.get("usage")),
+        latency_ms=ms,
+        attempts=attempts,
+        raw_message=message,
         raw_response=data,
     )
 

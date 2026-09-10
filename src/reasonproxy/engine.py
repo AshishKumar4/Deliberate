@@ -534,10 +534,12 @@ class Engine:
         tr["spoofed_tags"] = spoofed
         tr["replayed_checkpoints"] = replayed
         history = self._inject(history, vm)
-        if mode == "live" and wire.get("directive"):
+        if mode in ("live", "noop") and wire.get("directive"):
             # Directed deliberation: the measured user instruction, appended
             # transiently per request. The harness never sees it, so the next
             # request's history carries no copy; each turn gets exactly one.
+            # Noop arms mirror live presence exactly (their deliberate calls
+            # just return the fixed neutral text), so the directive applies.
             _, directive_text = wire["directive"]
             history = [*history, {"role": "user", "content": directive_text}]
             tr["directed"] = True

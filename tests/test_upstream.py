@@ -1112,3 +1112,191 @@ def test_totals_sum_known_data_and_declare_what_is_unknown():
     assert u.unreported() == 2 and u.unreported(roles={"controller"}) == 0
     assert u.unaccounted_attempts() == 7
     assert u.unaccounted_attempts(roles={"controller"}) == 0
+
+
+# --------------------------------------------------------------------------- #
+# responses protocol: same contract, second wire shape
+# --------------------------------------------------------------------------- #
+
+RCONFIG: dict = {
+    "providers": {
+        "resp": {
+            "base_url": "http://provider.invalid/v1",
+            "api_key_env": "FAKE_KEY",
+            "protocol": "responses",
+        }
+    },
+    "backends": {
+        "ctl": {"provider": "resp", "model": "controller-1"},
+    },
+    "virtual_models": {"ctl": {"controller": "ctl", "reason_mode": "off"}},
+    "trace_path": None,
+}
+
+R_OK = {
+    "id": "resp_1",
+    "object": "response",
+    "status": "completed",
+    "model": "controller-1",
+    "output": [
+        {
+            "type": "message",
+            "id": "m1",
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": "done"}],
+        }
+    ],
+    "usage": {"input_tokens": 10, "output_tokens": 2, "total_tokens": 12},
+}
+
+
+def rcall(content="go ahead", args='{"command": "ls"}'):
+    return {
+        "id": "resp_2",
+        "object": "response",
+        "status": "completed",
+        "model": "controller-1",
+        "output": [
+            {
+                "type": "message",
+                "id": "m2",
+                "role": "assistant",
+                "content": [{"type": "output_text", "text": content}],
+            },
+            {
+                "type": "function_call",
+                "id": "f1",
+                "call_id": "call_r1",
+                "name": "bash",
+                "arguments": args,
+            },
+        ],
+        "usage": {"input_tokens": 10, "output_tokens": 2},
+    }
+
+
+async def test_responses_path_posts_to_responses_and_parses_turn(monkeypatch):
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json=R_OK)
+
+    up = upstream_for(monkeypatch, handler, RCONFIG)
+    c = await up.complete("ctl", MSGS)
+
+    assert seen[0].url.path == "/v1/responses"
+    assert c.ok and c.content == "done" and c.finish_reason == "stop"
+    assert c.usage == {"prompt_tokens": 10, "completion_tokens": 2}
+
+
+async def test_responses_tool_call_arrives_in_chat_shape(monkeypatch):
+    up = upstream_for(monkeypatch, replies(rcall()), RCONFIG)
+    c = await up.complete(
+        "ctl", MSGS, tools=[{"type": "function", "function": {"name": "bash"}}]
+    )
+
+    assert c.ok and c.finish_reason == "tool_calls"
+    assert c.tool_calls == [
+        {
+            "id": "call_r1",
+            "type": "function",
+            "function": {"name": "bash", "arguments": '{"command": "ls"}'},
+        }
+    ]
+    # Replays through the same translation the next request uses.
+    assert c.as_assistant_message()["tool_calls"] == c.tool_calls
+
+
+async def test_responses_history_becomes_call_and_output_items(monkeypatch):
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, json=R_OK)
+
+    up = upstream_for(monkeypatch, handler, RCONFIG)
+    await up.complete(
+        "ctl",
+        [
+            {"role": "user", "content": "go"},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "call_r1",
+                        "type": "function",
+                        "function": {"name": "bash", "arguments": "{}"},
+                    }
+                ],
+            },
+            {"role": "tool", "tool_call_id": "call_r1", "content": "ok"},
+        ],
+    )
+
+    items = seen[0]["input"]
+    assert items[0] == {"role": "user", "content": "go"}
+    assert items[1] == {
+        "type": "function_call",
+        "call_id": "call_r1",
+        "name": "bash",
+        "arguments": "{}",
+    }
+    assert items[2] == {
+        "type": "function_call_output",
+        "call_id": "call_r1",
+        "output": "ok",
+    }
+
+
+async def test_responses_reducer_format_becomes_text_format(monkeypatch):
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, json=R_OK)
+
+    up = upstream_for(monkeypatch, handler, RCONFIG)
+    await up.complete(
+        "ctl", MSGS, overrides={"response_format": {"type": "json_object"}}
+    )
+
+    assert seen[0]["text"] == {"format": {"type": "json_object"}}
+    assert "response_format" not in seen[0]
+
+
+async def test_responses_empty_output_is_named_and_retried(monkeypatch):
+    up = upstream_for(
+        monkeypatch,
+        replies({"status": "completed", "output": [], "model": "controller-1"}),
+        RCONFIG,
+    )
+    c = await up.complete("ctl", MSGS)
+
+    assert not c.ok and c.error == "empty output" and c.attempts == 4
+
+
+async def test_responses_broken_call_is_malformed_not_trimmed(monkeypatch):
+    bad = rcall()
+    bad["output"][1] = {"type": "function_call", "call_id": "c9", "arguments": "{}"}
+    up = upstream_for(monkeypatch, replies(bad), RCONFIG)
+    c = await up.complete("ctl", MSGS)
+
+    assert not c.ok and "no function name" in c.error
+
+
+async def test_responses_server_error_envelope_is_transient(monkeypatch):
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return httpx.Response(500, json={"type": "error", "error": "boom"})
+        return httpx.Response(200, json=R_OK)
+
+    up = upstream_for(monkeypatch, handler, RCONFIG)
+    c = await up.complete("ctl", MSGS)
+
+    assert c.ok and calls == 2

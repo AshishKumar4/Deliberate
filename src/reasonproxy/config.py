@@ -21,11 +21,12 @@ from pydantic import BaseModel, Field, model_validator
 from .prompts import BRANCH_ROLE_SUFFIXES
 
 # Request-body keys the proxy owns end to end: the engine decides the model,
-# the message list, the tool surface, and never streams or fans out upstream.
-# A config or caller that sets them would silently break the protocol, so they
+# the message list (chat `messages`, responses `input`), the tool surface, the
+# reducer's output shape (`text`), and never streams or fans out upstream. A
+# config or caller that sets them would silently break the protocol, so they
 # are rejected here and stripped in the transport.
 TRANSPORT_OWNED = frozenset(
-    {"model", "messages", "tools", "tool_choice", "stream", "stream_options", "n"}
+    {"model", "messages", "input", "tools", "tool_choice", "text", "stream", "stream_options", "n"}
 )
 
 # Total attempts, including the initial request.
@@ -33,13 +34,14 @@ DEFAULT_MAX_ATTEMPTS = 4
 
 
 class Provider(BaseModel):
-    """An OpenAI-compatible HTTP endpoint."""
+    """An HTTP endpoint speaking one OpenAI-compatible protocol."""
 
     base_url: str
     api_key_env: str = Field(min_length=1)
     headers: dict[str, str] = Field(default_factory=dict)
     timeout_s: float = Field(default=300.0, gt=0)
     max_attempts: int = Field(default=DEFAULT_MAX_ATTEMPTS, ge=1, le=16)
+    protocol: Literal["chat_completions", "responses"] = "chat_completions"
 
     @model_validator(mode="after")
     def _check(self) -> Provider:
