@@ -1,0 +1,740 @@
+{
+  "schema": "reasonproxy.execution/1",
+  "written_utc": "2026-09-10T11:09:53.207607+00:00",
+  "suite": "terminal-bench-2",
+  "runner": "harbor",
+  "runner_version": "0.22.0",
+  "native_launch": {
+    "venv_python": "/Users/mrwhite0racle/.local/share/uv/tools/harbor/bin/python3",
+    "bootstrap": "scripts/native_harness.py",
+    "bootstrap_sha256": "2237b005137c46b2ff0482f11c8031c58ccb77622599126d64ce7663cd8dac1f",
+    "policy_version": "native-exec-cancellation-guard/2",
+    "policy_digest": "9c5ffe3304d8c97db60fcd7dc4b025d1e29919c5a741106f42c9366ef05b08b0",
+    "target_digest": "851d3aeeca959bdcaffbc35e465f778ebdf05925e06d594b0eefc776fa9c13e3",
+    "cancellation_policy": {
+      "container_dependencies": {
+        "optional": [
+          "readlink (adds the inherited-stdio-pipe signal)"
+        ],
+        "required": [
+          "bash",
+          "Linux /proc",
+          "kill",
+          "sleep"
+        ]
+      },
+      "digest": "9c5ffe3304d8c97db60fcd7dc4b025d1e29919c5a741106f42c9366ef05b08b0",
+      "fail_closed": [
+        "install-time verification of the patched method's presence, coroutine-ness and signature",
+        "per-environment containment probe (marker visible in /proc/self/environ, foreign environ readable, /proc enumerable) before the first main-container exec runs",
+        "unparseable exec argv, detached (-d) exec, or Windows container: the exec is refused, never run unguarded",
+        "unproven containment latches the harness process: every later main-container exec, including fresh verifier environments, is refused"
+      ],
+      "known_limits": [
+        "a descendant that simultaneously replaces its environment, calls setsid, re-parents to PID 1 and closes the exec's stdio shares no inherited signal with the exec and is not detected",
+        "SIGKILL of the harness process itself leaves no opportunity to contain anything",
+        "no claim is made about deliberate escapes from a co-operating or hostile in-container process beyond the four signals above"
+      ],
+      "ladder": {
+        "abort_late_rounds": 4,
+        "late_round_interval_sec": 0.25,
+        "post_client_late_rounds": 2,
+        "probe_timeout_sec": 60,
+        "sweep_timeout_sec": 20,
+        "term_grace_sec": 2
+      },
+      "never_signalled": [
+        "pid 1",
+        "the reaper shell itself",
+        "zombies (already terminated; unreapable from inside, and excluded from the survivor count for the same reason)",
+        "anything outside the union above"
+      ],
+      "ownership_signals": [
+        "NATIVE_EXEC_GUARD_ID=<per-exec uuid4> present in /proc/<pid>/environ (inherited across fork/exec, survives re-parenting)",
+        "descendant of a marked root via /proc/<pid>/stat ppid chain (<=64 hops)",
+        "member of a process group led by a marked root",
+        "holder of this exec's inherited stdio pipe, matched by /proc/<pid>/fd/{0,1,2} link target (skipped when the container has no readlink)"
+      ],
+      "patched": {
+        "also": "asyncio.create_subprocess_exec (observation only; passthrough when no guarded exec is active)",
+        "method": "DockerEnvironment._run_docker_compose_command",
+        "out_of_scope": "sidecar-service execs, non-exec compose commands (build/up/ps/cp/down), Windows containers (explicitly rejected)",
+        "scope": "compose `exec` argv whose service is the harness main service"
+      },
+      "preserved": [
+        "argv, shell wrapper, cwd, user, stdin, stdout streaming, exit code",
+        "the original exception object and its type on the abort path",
+        "normal completion (no sweep, no extra container work)",
+        "unrelated pre-existing container services and concurrently marked execs"
+      ],
+      "scripts": {
+        "probe_sha256": "738d6f809f80a6832ca04e0f0eb5e1304b39fcf0e775cd4826c1641c5e9a0d82",
+        "reaper_sha256": "df24e9d365ba5e3efba795d6009250c6da41bfd8a87c480b280073a704442e5d"
+      },
+      "summary": "On any abnormal exit (asyncio cancellation, harness exec timeout, host error) from a Linux main-container `docker compose exec`, the in-container command and its active descendants are SIGTERMed, then SIGKILLed and verified gone, before the exception propagates and the verifier phase starts; the host docker client and its host-side descendants are reaped afterwards, then containment is re-verified.",
+      "transport": "the compose argv prefix and environment observed from the guarded exec itself, reused verbatim for the reaper",
+      "version": "native-exec-cancellation-guard/2"
+    },
+    "patched_runtime": {
+      "class": {
+        "qualname": "harbor.environments.docker.docker.DockerEnvironment"
+      },
+      "main_service": "main",
+      "methods": {
+        "_collect_buffered_output": {
+          "present": true,
+          "signature": "(process: asyncio.subprocess.Process, *, timeout_sec: int | None, stdin_data: bytes | None = None) -> harbor.environments.base.ExecResult",
+          "source_sha256": "9deccdb55072b381406e67bd5164df6dbd047d1cd4272bb687670688f909ec59"
+        },
+        "_collect_streamed_output": {
+          "present": true,
+          "signature": "(process: asyncio.subprocess.Process, *, timeout_sec: int | None, stdin_data: bytes | None = None, on_output: collections.abc.Callable[[str, typing.Literal['stdout', 'stderr']], collections.abc.Awaitable[None]]) -> harbor.environments.base.ExecResult",
+          "source_sha256": "75eefd2bc921d0d1de1e779cd5ac0729426573b68eb62db547cc81759c561f1f"
+        },
+        "_compose_exec": {
+          "present": true,
+          "signature": "(self, command: str, *, service: str, cwd: str | None, env: dict[str, str] | None, timeout_sec: int | None, user: str | int | None) -> harbor.environments.base.ExecResult",
+          "source_sha256": "0c7a1fdb10b851c5bcd8412e2e242cf8eb8a694b128d448f5bb8d8e3679297b6"
+        },
+        "_run_docker_compose_command": {
+          "present": true,
+          "signature": "(self, command: list[str], check: bool = True, timeout_sec: int | None = None, stdin_data: bytes | None = None, on_output: collections.abc.Callable[[str, typing.Literal['stdout', 'stderr']], collections.abc.Awaitable[None]] | None = None) -> harbor.environments.base.ExecResult",
+          "source_sha256": "3842bcbe9a34192cd67e3b651d4c7ee12313c0daabac0f2d6f5897936168291c"
+        },
+        "_terminate_process": {
+          "present": true,
+          "signature": "(process: asyncio.subprocess.Process) -> None",
+          "source_sha256": "94c45cdbb210dcb46af4ec928cd8ff5f1ca6616a14388279968f0b8482dfcefb"
+        },
+        "exec": {
+          "present": true,
+          "signature": "(self, command: str, cwd: str | None = None, env: dict[str, str] | None = None, timeout_sec: int | None = None, user: str | int | None = None) -> harbor.environments.base.ExecResult",
+          "source_sha256": "2624d5b7ca23ba990ca64ad8e80edb03f7fe80f57816f729426c18cb383de9b5"
+        },
+        "service_exec": {
+          "present": true,
+          "signature": "(self, command: str, *, service: str | None = None, cwd: str | None = None, env: dict[str, str] | None = None, timeout_sec: int | None = None, user: str | int | None = None) -> harbor.environments.base.ExecResult",
+          "source_sha256": "58fb7ba9283864b4a51898bf5b97c6bb07fe3d4e72d2942d0b5107cf0b45ceb8"
+        }
+      },
+      "modules": {
+        "harbor.constants": {
+          "file": "/Users/mrwhite0racle/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/constants.py",
+          "sha256": "adc8213e55facf42a89db48949f62cb95a842c7a417045d477828cd0bff0bb1e"
+        },
+        "harbor.environments.base": {
+          "file": "/Users/mrwhite0racle/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/environments/base.py",
+          "sha256": "74ce73b043041ac8ec3214b73613a9827ca878d8a97b32f0d572a7f9173fef08"
+        },
+        "harbor.environments.docker.docker": {
+          "file": "/Users/mrwhite0racle/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/environments/docker/docker.py",
+          "sha256": "32f7c7b1b875cb9682a172b5cbe9d4c4e5e90c69fedeef5186baf363ed9d00e5"
+        },
+        "harbor.environments.docker.docker_unix": {
+          "file": "/Users/mrwhite0racle/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/environments/docker/docker_unix.py",
+          "sha256": "58b525e4e2fff1ab39997c82c971beba98f5a0dd80984778f493aec0191cb642"
+        }
+      },
+      "package": {
+        "dist": "harbor",
+        "name": "harbor",
+        "version": "0.22.0"
+      },
+      "python": {
+        "executable": "/Users/mrwhite0racle/.local/share/uv/tools/harbor/bin/python3",
+        "version": "3.12.4"
+      },
+      "target_digest": "851d3aeeca959bdcaffbc35e465f778ebdf05925e06d594b0eefc776fa9c13e3"
+    },
+    "entrypoint": "runpy of the original console script, arguments unchanged"
+  },
+  "conformance": false,
+  "dry_run": false,
+  "frozen_manifest": {
+    "path": "runs/frozen/terminal-bench-2-roles-20260910.json",
+    "sha256": "44975cb23d564176186c6e7ab0367e934811efbb95e3741123869492ccd5c192"
+  },
+  "counts": {
+    "planned_in_manifest": 5,
+    "requested": 5,
+    "executed": 5,
+    "missing": 0
+  },
+  "filters": {
+    "conditions": [
+      "rp/q-samesuper",
+      "rp/q-rolessuper",
+      "rp/q-checkersuper",
+      "rp/q-rolesmercury",
+      "rp/q-samemercury"
+    ],
+    "tasks": null,
+    "repeats": null,
+    "limit": null
+  },
+  "requested_trial_keys": [
+    "terminal-bench-2/rp/q-samesuper/query-optimize/r1",
+    "terminal-bench-2/rp/q-rolessuper/query-optimize/r1",
+    "terminal-bench-2/rp/q-checkersuper/query-optimize/r1",
+    "terminal-bench-2/rp/q-rolesmercury/query-optimize/r1",
+    "terminal-bench-2/rp/q-samemercury/query-optimize/r1"
+  ],
+  "missing_trial_keys": [],
+  "endpoint": {
+    "proxy_url_in_sandbox": "http://host.docker.internal:8102/v1",
+    "preflight_url": "http://127.0.0.1:8102/v1",
+    "auth": "bearer via ${REASONPROXY_API_KEY} template, resolved by the harness at runtime",
+    "proxy_key_env": "REASONPROXY_API_KEY",
+    "advertised_models": [
+      "rp/q-checkersuper",
+      "rp/q-rolesmercury",
+      "rp/q-rolessuper",
+      "rp/q-samemercury",
+      "rp/q-samesuper"
+    ],
+    "preflight": "ok"
+  },
+  "harness_settings": {
+    "model_name_template": "hosted_vllm/<alias>",
+    "proxy_url_in_sandbox": "http://host.docker.internal:8100/v1",
+    "agent_phase_allowlist": [
+      "host.docker.internal"
+    ],
+    "agent_step_limit": 250,
+    "cost_limit": "disabled (agent.cost_limit=0, MSWEA_COST_TRACKING=ignore_errors)",
+    "added_wall_clock_cap": null,
+    "timeout_multiplier": 3.0,
+    "n_concurrent_trials": 1,
+    "retries": 0,
+    "official_task_limits": "agent timeout x3.0 (declared deviation)",
+    "native_exec_cancellation_guard": {
+      "bootstrap": "scripts/native_harness.py",
+      "bootstrap_sha256": "2237b005137c46b2ff0482f11c8031c58ccb77622599126d64ce7663cd8dac1f",
+      "policy_version": "native-exec-cancellation-guard/2",
+      "policy_digest": "9c5ffe3304d8c97db60fcd7dc4b025d1e29919c5a741106f42c9366ef05b08b0",
+      "target_digest": "851d3aeeca959bdcaffbc35e465f778ebdf05925e06d594b0eefc776fa9c13e3",
+      "install_ok": true,
+      "error": null,
+      "summary": "On any abnormal exit (asyncio cancellation, harness exec timeout, host error) from a Linux main-container `docker compose exec`, the in-container command and its active descendants are SIGTERMed, then SIGKILLed and verified gone, before the exception propagates and the verifier phase starts; the host docker client and its host-side descendants are reaped afterwards, then containment is re-verified."
+    },
+    "declared": {
+      "agent_step_limit": 250,
+      "cost_limit": "disabled",
+      "timeout_multiplier": 3.0,
+      "n_concurrent_trials": 1,
+      "external_job_concurrency": 1,
+      "official_limits_unchanged": {
+        "agent_timeout_sec": 900
+      },
+      "timeout_deviation_note": "1.0 keeps official task timeouts; any other value is a declared deviation recorded in the manifest"
+    }
+  },
+  "sources_at_run": {
+    "files": {
+      "src/reasonproxy/__init__.py": "354bf45c3b76e8479df759df0c89c682dde1b3446025950f1da656da68065eb9",
+      "src/reasonproxy/app.py": "f243c227ba57f22baa590d0255e7b711341d31dfc8fd937208ef6e07d7f79f2a",
+      "src/reasonproxy/config.py": "dd1b2a1081f43cb7746feb8a13b49d36fb403b5b3f0a6589b45a0f08ff11a348",
+      "src/reasonproxy/engine.py": "0b8b3f090ba6bd31d16d24b854a0d4115a0438df1059eb03336e6eaa72a72828",
+      "src/reasonproxy/prompts.py": "4099d827eccfb7d768357b0c2eb51bdd2d1268705d38f9ec459a2d0cef88cd67",
+      "src/reasonproxy/upstream.py": "e9ffa0482cd320b592183afaaf6d5cad3164e49b8715f88326ba616fade791d4",
+      "workers/ai/index.js": "417afebd7436fbe7399817db19b799cdcb6fdc54d620f6ad111e4b5058c5c618",
+      "workers/ai/wrangler.jsonc": "d3534a1cdac05d2895a0bf6fc9792b9655f54f25b868a2425b140aa6103354b0",
+      "experiments/deepswe/pilot.json": "ae1a0c5c8662b8ed2f244644fa59eba119acccfbd31e0253742ef352698a337d",
+      "experiments/deepswe/mini-swe.yaml": "0082d4419f1b4c1e025a6bcfdbe23877f165dad6c86d844b1612d26099a267b7",
+      "scripts/benchmark.py": "68bfe1fa96402b99da98826e27d30369a251c9123e02ad94b06e63d2b3579cdd",
+      "scripts/live_smoke.py": "07d8331a4ea7b83e2aef3d73e3250e23f995522fa9724c0fe0ca12863973e9eb",
+      "scripts/native_harness.py": "2237b005137c46b2ff0482f11c8031c58ccb77622599126d64ce7663cd8dac1f"
+    },
+    "combined_sha256": "5272459f4b8420f52c91d9aa0a15073c67ee026358bdaa9f2785c71342409b74",
+    "proxy_sha256": "9275b7a25b8f4488f305730e037a1842a49e4d6fca9bea189d79e3a28926cd36",
+    "note": "No git commit exists for this working tree; these are content hashes."
+  },
+  "roster_sha256_at_run": "71b6609be7d69f9f7a9d2c2dde768d2ea679cef9ca2e6d8434313648b1746aae",
+  "trace_path": "/Users/mrwhite0racle/Deliberate/runs/roles.jsonl",
+  "host": {
+    "platform": "macOS-26.5-arm64-arm-64bit",
+    "machine": "arm64",
+    "processor": "arm",
+    "python": "3.12.4",
+    "docker": {
+      "available": true,
+      "server_version": "28.5.1",
+      "architecture": "aarch64",
+      "os_type": "linux",
+      "ncpu": 8,
+      "mem_total_bytes": 8218316800
+    },
+    "emulation_note": "DeepSWE images are linux/amd64; on an arm64 host they execute under emulation, which consumes part of the official agent budget."
+  },
+  "deviations": [],
+  "jobs": [
+    {
+      "job_name": "terminal-bench-2__rp-q-samesuper__query-optimize__r1__20260910T065623Z-eca4ea4b",
+      "condition": "rp/q-samesuper",
+      "task": "query-optimize",
+      "repeat": 1,
+      "trial_key": "terminal-bench-2/rp/q-samesuper/query-optimize/r1",
+      "config_path": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/configs/terminal-bench-2__rp-q-samesuper__query-optimize__r1__20260910T065623Z-eca4ea4b.yaml",
+      "config_sha256": "9dcea552edc1c374eb94a3a892efbcdd4db2472594320f790a27ae3e8fedc4c6",
+      "command": [
+        "/Users/mrwhite0racle/.local/share/uv/tools/harbor/bin/python3",
+        "/Users/mrwhite0racle/Deliberate/scripts/native_harness.py",
+        "harbor",
+        "/Users/mrwhite0racle/.local/bin/harbor",
+        "run",
+        "-c",
+        "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/configs/terminal-bench-2__rp-q-samesuper__query-optimize__r1__20260910T065623Z-eca4ea4b.yaml",
+        "-y"
+      ],
+      "job_dir": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/terminal-bench-2__rp-q-samesuper__query-optimize__r1__20260910T065623Z-eca4ea4b",
+      "injected_session_id": null,
+      "exec_guard": {
+        "policy_digest": "9c5ffe3304d8c97db60fcd7dc4b025d1e29919c5a741106f42c9366ef05b08b0",
+        "target_digest": "851d3aeeca959bdcaffbc35e465f778ebdf05925e06d594b0eefc776fa9c13e3",
+        "event_log": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/terminal-bench-2__rp-q-samesuper__query-optimize__r1__20260910T065623Z-eca4ea4b/native-harness-events.jsonl",
+        "breach_log": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/terminal-bench-2__rp-q-samesuper__query-optimize__r1__20260910T065623Z-eca4ea4b/native-harness-breaches.jsonl",
+        "installed": true,
+        "ready": true,
+        "contained_execs": 0,
+        "containment_elapsed_sec": [],
+        "unsupported": [],
+        "breaches": []
+      },
+      "trace_before": {
+        "path": "/Users/mrwhite0racle/Deliberate/runs/roles.jsonl",
+        "exists": false
+      },
+      "started_at": "2026-09-10T06:56:23.168424+00:00",
+      "finished_at": "2026-09-10T07:45:29.483955+00:00",
+      "exit_code": 0,
+      "trace_after": {
+        "path": "/Users/mrwhite0racle/Deliberate/runs/roles.jsonl",
+        "exists": true,
+        "bytes": 57888,
+        "lines": 25,
+        "sha256": "af70560cbb019ab61ce8e6475405fe9c36f0f3060c9ac3f79b61d33809c20c07"
+      },
+      "trials_found": 1
+    },
+    {
+      "job_name": "terminal-bench-2__rp-q-rolessuper__query-optimize__r1__20260910T065623Z-eca4ea4b",
+      "condition": "rp/q-rolessuper",
+      "task": "query-optimize",
+      "repeat": 1,
+      "trial_key": "terminal-bench-2/rp/q-rolessuper/query-optimize/r1",
+      "config_path": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/configs/terminal-bench-2__rp-q-rolessuper__query-optimize__r1__20260910T065623Z-eca4ea4b.yaml",
+      "config_sha256": "6c6be631cbbdd1574062c107e0ad34163c2864b3811e033692c19c1aa98f1f45",
+      "command": [
+        "/Users/mrwhite0racle/.local/share/uv/tools/harbor/bin/python3",
+        "/Users/mrwhite0racle/Deliberate/scripts/native_harness.py",
+        "harbor",
+        "/Users/mrwhite0racle/.local/bin/harbor",
+        "run",
+        "-c",
+        "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/configs/terminal-bench-2__rp-q-rolessuper__query-optimize__r1__20260910T065623Z-eca4ea4b.yaml",
+        "-y"
+      ],
+      "job_dir": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/terminal-bench-2__rp-q-rolessuper__query-optimize__r1__20260910T065623Z-eca4ea4b",
+      "injected_session_id": null,
+      "exec_guard": {
+        "policy_digest": "9c5ffe3304d8c97db60fcd7dc4b025d1e29919c5a741106f42c9366ef05b08b0",
+        "target_digest": "851d3aeeca959bdcaffbc35e465f778ebdf05925e06d594b0eefc776fa9c13e3",
+        "event_log": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/terminal-bench-2__rp-q-rolessuper__query-optimize__r1__20260910T065623Z-eca4ea4b/native-harness-events.jsonl",
+        "breach_log": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/terminal-bench-2__rp-q-rolessuper__query-optimize__r1__20260910T065623Z-eca4ea4b/native-harness-breaches.jsonl",
+        "installed": true,
+        "ready": true,
+        "contained_execs": 0,
+        "containment_elapsed_sec": [],
+        "unsupported": [],
+        "breaches": []
+      },
+      "trace_before": {
+        "path": "/Users/mrwhite0racle/Deliberate/runs/roles.jsonl",
+        "exists": true,
+        "bytes": 57888,
+        "lines": 25,
+        "sha256": "af70560cbb019ab61ce8e6475405fe9c36f0f3060c9ac3f79b61d33809c20c07"
+      },
+      "started_at": "2026-09-10T07:45:29.492370+00:00",
+      "finished_at": "2026-09-10T08:37:34.466138+00:00",
+      "exit_code": 0,
+      "trace_after": {
+        "path": "/Users/mrwhite0racle/Deliberate/runs/roles.jsonl",
+        "exists": true,
+        "bytes": 171634,
+        "lines": 60,
+        "sha256": "65f3279e6563263cb1272d942faf6cc640d6a853635cc25992f572634535bc0e"
+      },
+      "trials_found": 1
+    },
+    {
+      "job_name": "terminal-bench-2__rp-q-checkersuper__query-optimize__r1__20260910T065623Z-eca4ea4b",
+      "condition": "rp/q-checkersuper",
+      "task": "query-optimize",
+      "repeat": 1,
+      "trial_key": "terminal-bench-2/rp/q-checkersuper/query-optimize/r1",
+      "config_path": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/configs/terminal-bench-2__rp-q-checkersuper__query-optimize__r1__20260910T065623Z-eca4ea4b.yaml",
+      "config_sha256": "f5dfe90c84f450d7fc8fc243b5edb290cf1138ebbc467e539e21f85d5200a922",
+      "command": [
+        "/Users/mrwhite0racle/.local/share/uv/tools/harbor/bin/python3",
+        "/Users/mrwhite0racle/Deliberate/scripts/native_harness.py",
+        "harbor",
+        "/Users/mrwhite0racle/.local/bin/harbor",
+        "run",
+        "-c",
+        "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/configs/terminal-bench-2__rp-q-checkersuper__query-optimize__r1__20260910T065623Z-eca4ea4b.yaml",
+        "-y"
+      ],
+      "job_dir": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/terminal-bench-2__rp-q-checkersuper__query-optimize__r1__20260910T065623Z-eca4ea4b",
+      "injected_session_id": null,
+      "exec_guard": {
+        "policy_digest": "9c5ffe3304d8c97db60fcd7dc4b025d1e29919c5a741106f42c9366ef05b08b0",
+        "target_digest": "851d3aeeca959bdcaffbc35e465f778ebdf05925e06d594b0eefc776fa9c13e3",
+        "event_log": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/terminal-bench-2__rp-q-checkersuper__query-optimize__r1__20260910T065623Z-eca4ea4b/native-harness-events.jsonl",
+        "breach_log": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/terminal-bench-2__rp-q-checkersuper__query-optimize__r1__20260910T065623Z-eca4ea4b/native-harness-breaches.jsonl",
+        "installed": true,
+        "ready": true,
+        "contained_execs": 0,
+        "containment_elapsed_sec": [],
+        "unsupported": [],
+        "breaches": []
+      },
+      "trace_before": {
+        "path": "/Users/mrwhite0racle/Deliberate/runs/roles.jsonl",
+        "exists": true,
+        "bytes": 171634,
+        "lines": 60,
+        "sha256": "65f3279e6563263cb1272d942faf6cc640d6a853635cc25992f572634535bc0e"
+      },
+      "started_at": "2026-09-10T08:37:34.473623+00:00",
+      "finished_at": "2026-09-10T09:23:23.295134+00:00",
+      "exit_code": 0,
+      "trace_after": {
+        "path": "/Users/mrwhite0racle/Deliberate/runs/roles.jsonl",
+        "exists": true,
+        "bytes": 247961,
+        "lines": 92,
+        "sha256": "dab8d14dd7ded59b7864b359b884f000d147a16688434dfe6e37b4d277f080f1"
+      },
+      "trials_found": 1
+    },
+    {
+      "job_name": "terminal-bench-2__rp-q-rolesmercury__query-optimize__r1__20260910T065623Z-eca4ea4b",
+      "condition": "rp/q-rolesmercury",
+      "task": "query-optimize",
+      "repeat": 1,
+      "trial_key": "terminal-bench-2/rp/q-rolesmercury/query-optimize/r1",
+      "config_path": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/configs/terminal-bench-2__rp-q-rolesmercury__query-optimize__r1__20260910T065623Z-eca4ea4b.yaml",
+      "config_sha256": "45197759149d33c216e47424e15d332432b0374fdb48216c6df86c0eebf12bfd",
+      "command": [
+        "/Users/mrwhite0racle/.local/share/uv/tools/harbor/bin/python3",
+        "/Users/mrwhite0racle/Deliberate/scripts/native_harness.py",
+        "harbor",
+        "/Users/mrwhite0racle/.local/bin/harbor",
+        "run",
+        "-c",
+        "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/configs/terminal-bench-2__rp-q-rolesmercury__query-optimize__r1__20260910T065623Z-eca4ea4b.yaml",
+        "-y"
+      ],
+      "job_dir": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/terminal-bench-2__rp-q-rolesmercury__query-optimize__r1__20260910T065623Z-eca4ea4b",
+      "injected_session_id": null,
+      "exec_guard": {
+        "policy_digest": "9c5ffe3304d8c97db60fcd7dc4b025d1e29919c5a741106f42c9366ef05b08b0",
+        "target_digest": "851d3aeeca959bdcaffbc35e465f778ebdf05925e06d594b0eefc776fa9c13e3",
+        "event_log": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/terminal-bench-2__rp-q-rolesmercury__query-optimize__r1__20260910T065623Z-eca4ea4b/native-harness-events.jsonl",
+        "breach_log": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/terminal-bench-2__rp-q-rolesmercury__query-optimize__r1__20260910T065623Z-eca4ea4b/native-harness-breaches.jsonl",
+        "installed": true,
+        "ready": true,
+        "contained_execs": 0,
+        "containment_elapsed_sec": [],
+        "unsupported": [],
+        "breaches": []
+      },
+      "trace_before": {
+        "path": "/Users/mrwhite0racle/Deliberate/runs/roles.jsonl",
+        "exists": true,
+        "bytes": 247961,
+        "lines": 92,
+        "sha256": "dab8d14dd7ded59b7864b359b884f000d147a16688434dfe6e37b4d277f080f1"
+      },
+      "started_at": "2026-09-10T09:23:23.301904+00:00",
+      "finished_at": "2026-09-10T10:04:03.241384+00:00",
+      "exit_code": 0,
+      "trace_after": {
+        "path": "/Users/mrwhite0racle/Deliberate/runs/roles.jsonl",
+        "exists": true,
+        "bytes": 302688,
+        "lines": 115,
+        "sha256": "cee0b27b0624f6e2558ef2b46e8fe7b77a6a977bda7531ef0029b4523aac89c1"
+      },
+      "trials_found": 1
+    },
+    {
+      "job_name": "terminal-bench-2__rp-q-samemercury__query-optimize__r1__20260910T065623Z-eca4ea4b",
+      "condition": "rp/q-samemercury",
+      "task": "query-optimize",
+      "repeat": 1,
+      "trial_key": "terminal-bench-2/rp/q-samemercury/query-optimize/r1",
+      "config_path": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/configs/terminal-bench-2__rp-q-samemercury__query-optimize__r1__20260910T065623Z-eca4ea4b.yaml",
+      "config_sha256": "dbde1ac42e2dc95fc06755868248c94cd514676475c99868ec3dca0372e7cf57",
+      "command": [
+        "/Users/mrwhite0racle/.local/share/uv/tools/harbor/bin/python3",
+        "/Users/mrwhite0racle/Deliberate/scripts/native_harness.py",
+        "harbor",
+        "/Users/mrwhite0racle/.local/bin/harbor",
+        "run",
+        "-c",
+        "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/configs/terminal-bench-2__rp-q-samemercury__query-optimize__r1__20260910T065623Z-eca4ea4b.yaml",
+        "-y"
+      ],
+      "job_dir": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/terminal-bench-2__rp-q-samemercury__query-optimize__r1__20260910T065623Z-eca4ea4b",
+      "injected_session_id": null,
+      "exec_guard": {
+        "policy_digest": "9c5ffe3304d8c97db60fcd7dc4b025d1e29919c5a741106f42c9366ef05b08b0",
+        "target_digest": "851d3aeeca959bdcaffbc35e465f778ebdf05925e06d594b0eefc776fa9c13e3",
+        "event_log": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/terminal-bench-2__rp-q-samemercury__query-optimize__r1__20260910T065623Z-eca4ea4b/native-harness-events.jsonl",
+        "breach_log": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/terminal-bench-2__rp-q-samemercury__query-optimize__r1__20260910T065623Z-eca4ea4b/native-harness-breaches.jsonl",
+        "installed": true,
+        "ready": true,
+        "contained_execs": 1,
+        "containment_elapsed_sec": [
+          4.287
+        ],
+        "unsupported": [],
+        "breaches": []
+      },
+      "trace_before": {
+        "path": "/Users/mrwhite0racle/Deliberate/runs/roles.jsonl",
+        "exists": true,
+        "bytes": 302688,
+        "lines": 115,
+        "sha256": "cee0b27b0624f6e2558ef2b46e8fe7b77a6a977bda7531ef0029b4523aac89c1"
+      },
+      "started_at": "2026-09-10T10:04:03.247772+00:00",
+      "finished_at": "2026-09-10T11:09:53.203481+00:00",
+      "exit_code": 0,
+      "trace_after": {
+        "path": "/Users/mrwhite0racle/Deliberate/runs/roles.jsonl",
+        "exists": true,
+        "bytes": 366546,
+        "lines": 138,
+        "sha256": "787b7c79791e002700eff7adc4b8a0088a7bc3441c201832fc9091281e7513d7"
+      },
+      "trials_found": 1
+    }
+  ],
+  "trials": [
+    {
+      "order": 1,
+      "trial_key": "terminal-bench-2/rp/q-samesuper/query-optimize/r1",
+      "condition": "rp/q-samesuper",
+      "family": "q-samesuper",
+      "mode": "rp",
+      "task": "query-optimize",
+      "repeat": 1,
+      "tag": "pilot",
+      "trial_name": "query-optimize__aQKteUF",
+      "trial_dir": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/terminal-bench-2__rp-q-samesuper__query-optimize__r1__20260910T065623Z-eca4ea4b/query-optimize__aQKteUF",
+      "result_json": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/terminal-bench-2__rp-q-samesuper__query-optimize__r1__20260910T065623Z-eca4ea4b/query-optimize__aQKteUF/result.json",
+      "trial_id": "25a2b00c-68c3-43e5-9d8c-90ae26ae0923",
+      "task_checksum": "43d687659eb88cb6acddbebb08bce32ac974c1cd3d979a9af9da8f0f223ac1dc",
+      "harness_model_name": "hosted_vllm/rp/q-samesuper",
+      "condition_from_harness": "rp/q-samesuper",
+      "rewards": {
+        "reward": 1.0
+      },
+      "exception_type": null,
+      "exception_message": null,
+      "n_agent_steps": null,
+      "agent_usage": {
+        "n_input_tokens": 646763,
+        "n_output_tokens": 145505,
+        "cost_usd": 0.0
+      },
+      "started_at": "2026-09-10T06:56:24.514342Z",
+      "finished_at": "2026-09-10T07:45:25.730293Z",
+      "agent_execution": {
+        "started_at": "2026-09-10T06:58:30.837296Z",
+        "finished_at": "2026-09-10T07:27:31.002948Z"
+      },
+      "artifacts": {
+        "ctrf.json": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/terminal-bench-2__rp-q-samesuper__query-optimize__r1__20260910T065623Z-eca4ea4b/query-optimize__aQKteUF/verifier/ctrf.json",
+        "trajectory.json": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/terminal-bench-2__rp-q-samesuper__query-optimize__r1__20260910T065623Z-eca4ea4b/query-optimize__aQKteUF/agent/trajectory.json"
+      },
+      "status": "scored",
+      "job_name": "terminal-bench-2__rp-q-samesuper__query-optimize__r1__20260910T065623Z-eca4ea4b",
+      "condition_mismatch": false,
+      "session_id": "query-optimize__aQKteUF__agent"
+    },
+    {
+      "order": 2,
+      "trial_key": "terminal-bench-2/rp/q-rolessuper/query-optimize/r1",
+      "condition": "rp/q-rolessuper",
+      "family": "q-rolessuper",
+      "mode": "rp",
+      "task": "query-optimize",
+      "repeat": 1,
+      "tag": "pilot",
+      "trial_name": "query-optimize__AnD3R7T",
+      "trial_dir": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/terminal-bench-2__rp-q-rolessuper__query-optimize__r1__20260910T065623Z-eca4ea4b/query-optimize__AnD3R7T",
+      "result_json": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/terminal-bench-2__rp-q-rolessuper__query-optimize__r1__20260910T065623Z-eca4ea4b/query-optimize__AnD3R7T/result.json",
+      "trial_id": "e5e2dfde-e67a-40a1-8e73-73ca2ed03e45",
+      "task_checksum": "43d687659eb88cb6acddbebb08bce32ac974c1cd3d979a9af9da8f0f223ac1dc",
+      "harness_model_name": "hosted_vllm/rp/q-rolessuper",
+      "condition_from_harness": "rp/q-rolessuper",
+      "rewards": {
+        "reward": 1.0
+      },
+      "exception_type": null,
+      "exception_message": null,
+      "n_agent_steps": null,
+      "agent_usage": {
+        "n_input_tokens": 1828907,
+        "n_output_tokens": 191164,
+        "cost_usd": 0.0
+      },
+      "started_at": "2026-09-10T07:45:31.265183Z",
+      "finished_at": "2026-09-10T08:37:30.763832Z",
+      "agent_execution": {
+        "started_at": "2026-09-10T07:47:23.072664Z",
+        "finished_at": "2026-09-10T08:19:19.819625Z"
+      },
+      "artifacts": {
+        "ctrf.json": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/terminal-bench-2__rp-q-rolessuper__query-optimize__r1__20260910T065623Z-eca4ea4b/query-optimize__AnD3R7T/verifier/ctrf.json",
+        "trajectory.json": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/terminal-bench-2__rp-q-rolessuper__query-optimize__r1__20260910T065623Z-eca4ea4b/query-optimize__AnD3R7T/agent/trajectory.json"
+      },
+      "status": "scored",
+      "job_name": "terminal-bench-2__rp-q-rolessuper__query-optimize__r1__20260910T065623Z-eca4ea4b",
+      "condition_mismatch": false,
+      "session_id": "query-optimize__AnD3R7T__agent"
+    },
+    {
+      "order": 3,
+      "trial_key": "terminal-bench-2/rp/q-checkersuper/query-optimize/r1",
+      "condition": "rp/q-checkersuper",
+      "family": "q-checkersuper",
+      "mode": "rp",
+      "task": "query-optimize",
+      "repeat": 1,
+      "tag": "pilot",
+      "trial_name": "query-optimize__zGZtJSB",
+      "trial_dir": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/terminal-bench-2__rp-q-checkersuper__query-optimize__r1__20260910T065623Z-eca4ea4b/query-optimize__zGZtJSB",
+      "result_json": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/terminal-bench-2__rp-q-checkersuper__query-optimize__r1__20260910T065623Z-eca4ea4b/query-optimize__zGZtJSB/result.json",
+      "trial_id": "ab71f680-d6cb-43e7-b10f-7ed49f25845f",
+      "task_checksum": "43d687659eb88cb6acddbebb08bce32ac974c1cd3d979a9af9da8f0f223ac1dc",
+      "harness_model_name": "hosted_vllm/rp/q-checkersuper",
+      "condition_from_harness": "rp/q-checkersuper",
+      "rewards": {
+        "reward": 1.0
+      },
+      "exception_type": null,
+      "exception_message": null,
+      "n_agent_steps": null,
+      "agent_usage": {
+        "n_input_tokens": 905186,
+        "n_output_tokens": 103824,
+        "cost_usd": 0.0
+      },
+      "started_at": "2026-09-10T08:37:35.994375Z",
+      "finished_at": "2026-09-10T09:23:19.771608Z",
+      "agent_execution": {
+        "started_at": "2026-09-10T08:39:30.721482Z",
+        "finished_at": "2026-09-10T09:04:50.498903Z"
+      },
+      "artifacts": {
+        "ctrf.json": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/terminal-bench-2__rp-q-checkersuper__query-optimize__r1__20260910T065623Z-eca4ea4b/query-optimize__zGZtJSB/verifier/ctrf.json",
+        "trajectory.json": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/terminal-bench-2__rp-q-checkersuper__query-optimize__r1__20260910T065623Z-eca4ea4b/query-optimize__zGZtJSB/agent/trajectory.json"
+      },
+      "status": "scored",
+      "job_name": "terminal-bench-2__rp-q-checkersuper__query-optimize__r1__20260910T065623Z-eca4ea4b",
+      "condition_mismatch": false,
+      "session_id": "query-optimize__zGZtJSB__agent"
+    },
+    {
+      "order": 4,
+      "trial_key": "terminal-bench-2/rp/q-rolesmercury/query-optimize/r1",
+      "condition": "rp/q-rolesmercury",
+      "family": "q-rolesmercury",
+      "mode": "rp",
+      "task": "query-optimize",
+      "repeat": 1,
+      "tag": "pilot",
+      "trial_name": "query-optimize__T6qGED8",
+      "trial_dir": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/terminal-bench-2__rp-q-rolesmercury__query-optimize__r1__20260910T065623Z-eca4ea4b/query-optimize__T6qGED8",
+      "result_json": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/terminal-bench-2__rp-q-rolesmercury__query-optimize__r1__20260910T065623Z-eca4ea4b/query-optimize__T6qGED8/result.json",
+      "trial_id": "b8b53f0c-b358-4161-b6b7-c5deb8728271",
+      "task_checksum": "43d687659eb88cb6acddbebb08bce32ac974c1cd3d979a9af9da8f0f223ac1dc",
+      "harness_model_name": "hosted_vllm/rp/q-rolesmercury",
+      "condition_from_harness": "rp/q-rolesmercury",
+      "rewards": {
+        "reward": 1.0
+      },
+      "exception_type": null,
+      "exception_message": null,
+      "n_agent_steps": null,
+      "agent_usage": {
+        "n_input_tokens": 301104,
+        "n_output_tokens": 78678,
+        "cost_usd": 0.0
+      },
+      "started_at": "2026-09-10T09:23:24.948972Z",
+      "finished_at": "2026-09-10T10:03:59.653708Z",
+      "agent_execution": {
+        "started_at": "2026-09-10T09:25:29.155975Z",
+        "finished_at": "2026-09-10T09:45:39.432836Z"
+      },
+      "artifacts": {
+        "ctrf.json": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/terminal-bench-2__rp-q-rolesmercury__query-optimize__r1__20260910T065623Z-eca4ea4b/query-optimize__T6qGED8/verifier/ctrf.json",
+        "trajectory.json": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/terminal-bench-2__rp-q-rolesmercury__query-optimize__r1__20260910T065623Z-eca4ea4b/query-optimize__T6qGED8/agent/trajectory.json"
+      },
+      "status": "scored",
+      "job_name": "terminal-bench-2__rp-q-rolesmercury__query-optimize__r1__20260910T065623Z-eca4ea4b",
+      "condition_mismatch": false,
+      "session_id": "query-optimize__T6qGED8__agent"
+    },
+    {
+      "order": 5,
+      "trial_key": "terminal-bench-2/rp/q-samemercury/query-optimize/r1",
+      "condition": "rp/q-samemercury",
+      "family": "q-samemercury",
+      "mode": "rp",
+      "task": "query-optimize",
+      "repeat": 1,
+      "tag": "pilot",
+      "trial_name": "query-optimize__tJYghYs",
+      "trial_dir": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/terminal-bench-2__rp-q-samemercury__query-optimize__r1__20260910T065623Z-eca4ea4b/query-optimize__tJYghYs",
+      "result_json": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/terminal-bench-2__rp-q-samemercury__query-optimize__r1__20260910T065623Z-eca4ea4b/query-optimize__tJYghYs/result.json",
+      "trial_id": "d1f4123b-df9f-4d6d-a2dc-23e3a7624414",
+      "task_checksum": "43d687659eb88cb6acddbebb08bce32ac974c1cd3d979a9af9da8f0f223ac1dc",
+      "harness_model_name": "hosted_vllm/rp/q-samemercury",
+      "condition_from_harness": "rp/q-samemercury",
+      "rewards": {
+        "reward": 1.0
+      },
+      "exception_type": "AgentTimeoutError",
+      "exception_message": "Agent execution timed out after 2700.0 seconds",
+      "n_agent_steps": null,
+      "agent_usage": {
+        "n_input_tokens": 411278,
+        "n_output_tokens": 173668,
+        "cost_usd": 0.0
+      },
+      "started_at": "2026-09-10T10:04:04.804727Z",
+      "finished_at": "2026-09-10T11:09:48.956102Z",
+      "agent_execution": {
+        "started_at": "2026-09-10T10:06:03.855427Z",
+        "finished_at": "2026-09-10T10:51:08.207546Z"
+      },
+      "artifacts": {
+        "ctrf.json": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/terminal-bench-2__rp-q-samemercury__query-optimize__r1__20260910T065623Z-eca4ea4b/query-optimize__tJYghYs/verifier/ctrf.json",
+        "trajectory.json": "/Users/mrwhite0racle/Deliberate/runs/tb2-roles/terminal-bench-2__rp-q-samemercury__query-optimize__r1__20260910T065623Z-eca4ea4b/query-optimize__tJYghYs/agent/trajectory.json"
+      },
+      "status": "scored",
+      "job_name": "terminal-bench-2__rp-q-samemercury__query-optimize__r1__20260910T065623Z-eca4ea4b",
+      "condition_mismatch": false,
+      "session_id": "query-optimize__tJYghYs__agent"
+    }
+  ],
+  "failures": [],
+  "no_synthesis_note": "Missing results are listed above and are never zero-filled or imputed."
+}
