@@ -272,6 +272,12 @@ BRANCH_ROLE_SUFFIXES = {
         "Continue as the same agent, prioritizing what existing evidence actually "
         "establishes and the cheapest decisive verification step."
     ),
+    "checker": (
+        "Continue as the same agent, auditing the current state against the "
+        "task's acceptance criteria: what deliverable must exist, in what shape "
+        "and location, what is already satisfied, and what single check would "
+        "prove or falsify completion. Name missing deliverables explicitly."
+    ),
     "recovery": (
         "Continue as the same agent, focusing on why prior attempts failed and how to "
         "avoid repeating them."

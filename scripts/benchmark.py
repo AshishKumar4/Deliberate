@@ -444,12 +444,16 @@ class Predeclaration:
             self.harness = {
                 "agent_step_limit": 250,
                 "cost_limit": "disabled",
-                "timeout_multiplier": 1.0,
+                "timeout_multiplier": float(raw.get("timeout_multiplier", 1.0)),
                 "n_concurrent_trials": 1,
                 "external_job_concurrency": raw.get("external_job_concurrency", 1),
                 "official_limits_unchanged": {
                     "agent_timeout_sec": raw.get("native_agent_timeout_sec")
                 },
+                "timeout_deviation_note": (
+                    "1.0 keeps official task timeouts; any other value is a "
+                    "declared deviation recorded in the manifest"
+                ),
             }
 
     @property
@@ -818,10 +822,14 @@ def cmd_freeze(args: argparse.Namespace) -> int:
             "agent_step_limit": int(args.step_limit),
             "cost_limit": "disabled (agent.cost_limit=0, MSWEA_COST_TRACKING=ignore_errors)",
             "added_wall_clock_cap": None,
-            "timeout_multiplier": 1.0,
+            "timeout_multiplier": float(pre.harness["timeout_multiplier"]),
             "n_concurrent_trials": 1,
             "retries": 0,
-            "official_task_limits": "unchanged",
+            "official_task_limits": (
+                "unchanged"
+                if float(pre.harness["timeout_multiplier"]) == 1.0
+                else f"agent timeout x{float(pre.harness['timeout_multiplier'])} (declared deviation)"
+            ),
             # Not a limit change: the guard only decides what happens to the
             # in-container process once the harness's own timeout has already
             # fired. Models, prompts, step/cost limits, task timeouts and the
@@ -947,6 +955,7 @@ def pier_job_config(
     mini_version: str,
     session_id: str,
     template: dict[str, Any] | None,
+    timeout_multiplier: float = 1.0,
 ) -> dict[str, Any]:
     config = json.loads(json.dumps(template)) if template else {}
     # The template owns environment/verifier/artifact knobs and any extra agent
@@ -975,7 +984,7 @@ def pier_job_config(
             "jobs_dir": str(jobs_dir),
             "n_attempts": 1,
             "n_concurrent_trials": 1,
-            "timeout_multiplier": 1.0,
+            "timeout_multiplier": float(timeout_multiplier),
             "retry": {"max_retries": 0},
             "datasets": [{"path": str(tasks_root), "task_names": list(task_names)}],
             "agents": [agent],
@@ -995,6 +1004,7 @@ def harbor_job_config(
     key_ref: str | None,
     step_limit: int,
     mini_version: str,
+    timeout_multiplier: float = 1.0,
 ) -> dict[str, Any]:
     host = urllib.parse.urlsplit(api_base).hostname
     env = agent_env(api_base, key_ref)
@@ -1007,7 +1017,7 @@ def harbor_job_config(
         "jobs_dir": str(jobs_dir),
         "n_attempts": 1,
         "n_concurrent_trials": 1,
-        "timeout_multiplier": 1.0,
+        "timeout_multiplier": float(timeout_multiplier),
         "retry": {"max_retries": 0},
         "datasets": [{"path": str(tasks_root), "task_names": list(task_names)}],
         "agents": [
@@ -1396,6 +1406,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     tasks_root = Path(manifest["dataset"]["tasks_root"])
     mini_version = manifest["tools"]["mini_swe_agent_in_sandbox"]["version"]
     step_limit = manifest["harness_settings"]["agent_step_limit"]
+    timeout_multiplier = float(manifest["harness_settings"].get("timeout_multiplier", 1.0))
 
     # One job per planned trial. Trials are serial on this host anyway
     # (n_concurrent_trials 1), and a 1:1 job/trial mapping is what makes the
@@ -1423,6 +1434,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                 key_ref=key_ref,
                 step_limit=step_limit,
                 mini_version=mini_version,
+                timeout_multiplier=timeout_multiplier,
                 session_id=session_id,
                 template=template,
             )
@@ -1438,6 +1450,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                 key_ref=key_ref,
                 step_limit=step_limit,
                 mini_version=mini_version,
+                timeout_multiplier=timeout_multiplier,
             )
             # Harbor sets agent.session_id = f"{trial_name}__agent" itself and
             # appends the header flag after any custom config, so the expected

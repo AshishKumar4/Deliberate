@@ -1,0 +1,110 @@
+# ReasonProxy -- role-diversity experiment roster (new file; self-contained).
+#
+# Query-optimize only: the one task with headroom (0/6 everywhere). Five arms
+# isolate two variables against the best-pilot reference (rp/glm53-best):
+#   branch roles  same-agent vs [challenger, alternative, evidence, ...]
+#   reducer       Super (verified) vs Mercury (verified 8/8)
+# Controllers, branches, bounds and directive are otherwise identical, and no
+# sampling parameters exist anywhere: provider defaults apply. Keys come from
+# the environment, never this file.
+
+providers:
+  cf:
+    base_url: https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/v1
+    api_key_env: CLOUDFLARE_API_TOKEN
+    timeout_s: 300
+  zen:
+    base_url: https://opencode.ai/zen/v1
+    api_key_env: OPENCODE_API_KEY
+    max_attempts: 8
+    timeout_s: 300
+  openrouter:
+    base_url: https://openrouter.ai/api/v1
+    api_key_env: OPENROUTER_API_KEY
+    max_attempts: 8
+    timeout_s: 300
+
+backends:
+  ctrl-q-glm53:
+    provider: cf
+    model: "@cf/zai-org/glm-5.3"
+  br-q-glm53:
+    provider: cf
+    model: "@cf/zai-org/glm-5.3"
+  br-q-deepseek:
+    provider: cf
+    model: "@cf/deepseek-ai/deepseek-v4-pro-0813"
+  br-q-ultra:
+    provider: zen
+    model: nemotron-3-ultra-free
+  br-q-flash-hot:
+    provider: cf
+    model: "@cf/zai-org/glm-5.3-flash"
+  red-q-super:
+    provider: cf
+    model: "@cf/nvidia/nemotron-3-120b-a12b"
+  red-q-mercury:
+    provider: openrouter
+    model: inception/mercury-2.5
+
+virtual_models:
+  rp/q-samesuper:
+    controller: ctrl-q-glm53
+    reason_mode: live
+    controller_prompt: deliberate-directed
+    branches: [br-q-glm53, br-q-deepseek, br-q-ultra, br-q-flash-hot]
+    reducer: red-q-super
+    min_branches: 4
+    max_reason_calls: 2
+    branch_timeout_s: 420
+    persistence: assistant_tags
+  rp/q-rolessuper:
+    controller: ctrl-q-glm53
+    reason_mode: live
+    controller_prompt: deliberate-directed
+    branches: [br-q-glm53, br-q-deepseek, br-q-ultra, br-q-flash-hot]
+    branch_prompt: roles
+    branch_roles: [challenger, alternative, evidence, independent]
+    reducer: red-q-super
+    min_branches: 4
+    max_reason_calls: 2
+    branch_timeout_s: 420
+    persistence: assistant_tags
+  rp/q-checkersuper:
+    controller: ctrl-q-glm53
+    reason_mode: live
+    controller_prompt: deliberate-directed
+    branches: [br-q-glm53, br-q-deepseek, br-q-ultra, br-q-flash-hot]
+    branch_prompt: roles
+    branch_roles: [challenger, alternative, evidence, checker]
+    reducer: red-q-super
+    min_branches: 4
+    max_reason_calls: 2
+    branch_timeout_s: 420
+    persistence: assistant_tags
+  rp/q-rolesmercury:
+    controller: ctrl-q-glm53
+    reason_mode: live
+    controller_prompt: deliberate-directed
+    branches: [br-q-glm53, br-q-deepseek, br-q-ultra, br-q-flash-hot]
+    branch_prompt: roles
+    branch_roles: [challenger, alternative, evidence, independent]
+    reducer: red-q-mercury
+    min_branches: 4
+    max_reason_calls: 2
+    branch_timeout_s: 420
+    persistence: assistant_tags
+  rp/q-samemercury:
+    controller: ctrl-q-glm53
+    reason_mode: live
+    controller_prompt: deliberate-directed
+    branches: [br-q-glm53, br-q-deepseek, br-q-ultra, br-q-flash-hot]
+    reducer: red-q-mercury
+    min_branches: 4
+    max_reason_calls: 2
+    branch_timeout_s: 420
+    persistence: assistant_tags
+
+# Separate trace: role-experiment observations join trials against this file.
+trace_path: runs/roles.jsonl
+trace_texts: false

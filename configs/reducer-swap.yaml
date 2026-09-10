@@ -1,0 +1,75 @@
+# ReasonProxy -- reducer-swap pilot roster (new file; nothing shared by reference).
+#
+# One variable changes against rp/glm53-best: the reducer. Same GLM 5.3
+# controller, same four cross-family branches, same bounds, same directive.
+# Super-reducer outcomes come from the best pilot (rp/glm53-best, 2/3);
+# this file adds only the Mercury-reducer arm (3 trials). Never pooled with
+# any other pilot: the ensemble matches the best pilot by construction so the
+# ONLY difference is the reducer model.
+#
+# No sampling parameters anywhere: provider defaults apply. Keys come from
+# the environment, never this file.
+#
+# Evidence status:
+#   red-or-mercury  8/8 branch+reducer conformance (call/replay/branch/json/
+#       reducer all PASS, runs/onboarding/mercury-contracts.json)
+#   Ultra/Muse reducers excluded: Ultra json_object output did not parse,
+#       Muse reducer probe quota-blocked at 429 (both recorded, not retried
+#       into provider limits).
+
+providers:
+  cf:
+    base_url: https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/v1
+    api_key_env: CLOUDFLARE_API_TOKEN
+    timeout_s: 300
+  zen:
+    base_url: https://opencode.ai/zen/v1
+    api_key_env: OPENCODE_API_KEY
+    max_attempts: 8
+    timeout_s: 300
+  openrouter:
+    base_url: https://openrouter.ai/api/v1
+    api_key_env: OPENROUTER_API_KEY
+    max_attempts: 8
+    timeout_s: 300
+
+backends:
+  ctrl-swap-glm53:
+    provider: cf
+    model: "@cf/zai-org/glm-5.3"
+  br-swap-glm53:
+    provider: cf
+    model: "@cf/zai-org/glm-5.3"
+  br-swap-deepseek:
+    provider: cf
+    model: "@cf/deepseek-ai/deepseek-v4-pro-0813"
+  br-swap-ultra:
+    provider: zen
+    model: nemotron-3-ultra-free
+  br-swap-flash-hot:
+    provider: cf
+    model: "@cf/zai-org/glm-5.3-flash"
+  red-swap-super:
+    provider: cf
+    model: "@cf/nvidia/nemotron-3-120b-a12b"
+  red-swap-mercury:
+    provider: openrouter
+    model: inception/mercury-2.5
+
+virtual_models:
+  # Reference arm is rp/glm53-best (best pilot, Super reducer, 2/3). This arm
+  # changes only the reducer to Mercury.
+  rp/swap-mercury:
+    controller: ctrl-swap-glm53
+    reason_mode: live
+    controller_prompt: deliberate-directed
+    branches: [br-swap-glm53, br-swap-deepseek, br-swap-ultra, br-swap-flash-hot]
+    reducer: red-swap-mercury
+    min_branches: 4
+    max_reason_calls: 2
+    branch_timeout_s: 420
+    persistence: assistant_tags
+
+# Separate trace: swap observations join trials against this file only.
+trace_path: runs/swap.jsonl
+trace_texts: false
