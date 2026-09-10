@@ -118,10 +118,33 @@ Requested: every ensemble member at maximum reasoning, with only final outputs c
   forwarded verbatim; `TRANSPORT_OWNED` (`src/reasonproxy/config.py:23-29`) claims only
   `model`, `messages`, `input`, `tools`, `tool_choice`, `text`, `stream`,
   `stream_options`, `n`, so `reasoning_effort` / `reasoning` reach the provider body
-  untouched. This reverses the 2026-09-10 zero-parameter policy *deliberately and only
-  for reasoning budget*, which is the variable under test; sampling parameters stay
-  unset. Each provider's accepted key and value set must be probed before the run and
-  recorded in the manifest.
+  untouched. Two tests in `tests/test_upstream.py` assert exactly that, including that a
+  null override drops the key instead of sending a JSON null. This reverses the
+  2026-09-10 zero-parameter policy *deliberately and only for reasoning budget*, which
+  is the variable under test; sampling parameters stay unset.
+* **There is no single "max" token - the ladder is per model.** Read 2026-09-10 from the
+  public OpenRouter catalogue (`GET /api/v1/models`, `reasoning` field):
+
+| Model | Supported efforts | Provider default | Declared in our rosters |
+|---|---|---|---|
+| `z-ai/glm-5.3` | max, high, low | **max** | `max` |
+| `z-ai/glm-5.3-flash` | max, high, low | **max** | `max` |
+| `deepseek/deepseek-v4-pro-0813` | max, high, low | high | `max` |
+| `nvidia/nemotron-3-ultra-550b-a55b` | high, medium | high | `high` (no `max` exists) |
+| `inception/mercury-2.5` | high, medium, low, none | medium | `high` reducer, `none` judge |
+| `qwen/qwen3.8-27b` (excluded) | xhigh, medium, low | xhigh | - |
+
+  Two consequences. First, `high` is *below default* for both GLM models, so the initial
+  draft of these rosters would have quietly **reduced** effort under what every earlier
+  trial in this repo already received from provider defaults; that is corrected to `max`.
+  Second, because `max` is GLM 5.3's default, the published 41.8% run and our own prior
+  zero-parameter trials were already at maximum effort - raising effort is therefore not
+  an available source of gain for the controller, only an equalizer for the branches.
+* **Route authority differs.** Mercury is reached *through* OpenRouter, so its ladder is
+  authoritative. GLM, DeepSeek and Nemotron are served by Cloudflare Workers AI and
+  OpenCode Zen, whose OpenAI-compatible surfaces do not document this key; for those the
+  catalogue is model-family evidence and the accepted key/value MUST still be probed
+  live before a scored run, with the result recorded in the manifest.
 
 ## 7. Execution order
 
@@ -131,11 +154,19 @@ Requested: every ensemble member at maximum reasoning, with only final outputs c
    8,192-token floor, arm-blind judge, resumable JSONL. Paired McNemar + Wilson +
    paired bootstrap. Arms: raw controller vs directive-only vs full ensemble, all at max
    reasoning effort. **This is the run that can detect 2.5 pp.**
-2. **TB4 external calibration** - raw GLM-5.3, official Claude Code agent, 66 tasks, to
-   measure our infrastructure's error bar against 41.8% +/- 3.2%.
-3. **TB4 paired arms** - only after a compute-budget decision on cloud sandboxes;
-   locally this is a 24-day serial run for a 7 pp MDE.
-4. **ARC-AGI-3** - `arcprize/arc-agi-3-benchmarking`, 25 games, needs a free
+2. **TB4 causal arms, host-feasible pool** - frozen and ready:
+   `runs/onboarding/terminal-bench-4-selection.json` pins the **57** tasks whose declared
+   containers fit this host (<= 8192 MB, <= 8 CPUs), chosen by resources alone before any
+   model touched a TB4 task; the 9 excluded are named in that file. `freeze --suite
+   terminal-bench-4 --roster configs/tb4.yaml` plans **171 trials** (57 x 3 arms x 1) at
+   the official 8-hour timeout, with the registry dataset pinned by the content digest of
+   all 66 `task.toml` files. Detects roughly 15 pp and no smaller: descriptive, and the
+   only agentic evidence this host can produce unaided.
+3. **TB4 external calibration** - raw GLM-5.3 in the official Claude Code agent on the
+   full 66, to measure our infrastructure's error bar against 41.8% +/- 3.2%.
+4. **TB4 at power** - full 66 x 3 arms x 5 repeats needs cloud sandboxes; locally that is
+   a ~24-day serial run for a 7 pp MDE.
+5. **ARC-AGI-3** - `arcprize/arc-agi-3-benchmarking`, 25 games, needs a free
    `ARC_API_KEY`; our proxy registers as an OpenAI-compatible model config. Report
    standard-harness and provider-adapter numbers separately, as the foundation requires.
 

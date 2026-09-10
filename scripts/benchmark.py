@@ -336,17 +336,51 @@ def native_guard_snapshot(runner: str, tool: dict[str, Any]) -> dict[str, Any]:
     return snapshot
 
 
-def git_head(path: Path) -> dict[str, Any]:
-    if not (path / ".git").exists():
-        return {"path": str(path), "head": None, "error": "not a git clone"}
-    code, text = run_text(["git", "-C", str(path), "rev-parse", "HEAD"])
-    if code != 0:
-        return {"path": str(path), "head": None, "error": text}
-    dirty_code, dirty = run_text(["git", "-C", str(path), "status", "--porcelain"])
+def clone_state(path: Path) -> dict[str, Any]:
+    """Identify a task clone, whether it is a git checkout or a registry download.
+
+    Terminal-Bench 2.0 arrives as a git clone, so its HEAD is the honest pin.
+    Terminal-Bench 4.0 arrives from the Harbor registry as plain files with no
+    history, so there is no commit to compare against and a missing-HEAD check
+    would reject a perfectly identified dataset. What a manifest actually needs
+    to pin is *which tasks these are*, so a non-git clone is pinned by the
+    digest of every `task.toml` in it, keyed by task name. Either way the
+    identity is content-addressed and a mid-experiment edit cannot pass.
+    """
+    if (path / ".git").exists():
+        code, text = run_text(["git", "-C", str(path), "rev-parse", "HEAD"])
+        if code != 0:
+            return {"path": str(path), "kind": "git", "head": None, "error": text}
+        dirty_code, dirty = run_text(["git", "-C", str(path), "status", "--porcelain"])
+        return {
+            "path": str(path),
+            "kind": "git",
+            "head": text.strip(),
+            "dirty": bool(dirty.strip()) if dirty_code == 0 else None,
+        }
+    if not path.is_dir():
+        return {"path": str(path), "kind": "missing", "head": None, "error": "no such directory"}
+    manifests = sorted(path.glob("*/task.toml"))
+    if not manifests:
+        return {
+            "path": str(path),
+            "kind": "unknown",
+            "head": None,
+            "error": "neither a git clone nor a task directory",
+        }
+    rolling = hashlib.sha256()
+    for manifest in manifests:
+        rolling.update(manifest.parent.name.encode())
+        rolling.update(b"\t")
+        rolling.update(sha256_bytes(manifest.read_bytes()).encode())
+        rolling.update(b"\n")
     return {
         "path": str(path),
-        "head": text.strip(),
-        "dirty": bool(dirty.strip()) if dirty_code == 0 else None,
+        "kind": "registry",
+        "head": None,
+        "tasks": len(manifests),
+        "content_sha256": rolling.hexdigest(),
+        "note": "no git history; identity is the digest of every task.toml in the clone",
     }
 
 
@@ -744,10 +778,24 @@ def cmd_freeze(args: argparse.Namespace) -> int:
     if not mini_pin:
         problems.append("pyproject [tool.reasonproxy.harnesses] is missing mini_swe_agent")
 
-    clone = git_head(pre.clone)
-    if clone.get("head") != pre.commit:
+    clone = clone_state(pre.clone)
+    if clone.get("kind") == "git":
+        if clone.get("head") != pre.commit:
+            problems.append(
+                f"clone {pre.clone} is at {clone.get('head')}, predeclaration pins {pre.commit}"
+            )
+    elif clone.get("kind") == "registry":
+        # A registry download carries a dataset version, not a commit, so the
+        # predeclaration pins that version string and the manifest carries the
+        # content digest that actually identifies the tasks.
+        if not pre.commit:
+            problems.append(
+                f"clone {pre.clone} is a registry download; predeclaration must pin its "
+                "dataset version"
+            )
+    else:
         problems.append(
-            f"clone {pre.clone} is at {clone.get('head')}, predeclaration pins {pre.commit}"
+            f"clone {pre.clone} is unusable: {clone.get('error') or clone.get('kind')}"
         )
     pinned_commit = pins.get(f"{pre.suite}_commit")
     if pinned_commit and pinned_commit != pre.commit:

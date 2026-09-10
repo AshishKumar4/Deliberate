@@ -16,9 +16,30 @@
 # Reasoning budget is the one sampling-adjacent parameter this project sets on
 # purpose: it is the mechanism under test ("augment the model's reasoning"), and
 # only final outputs ever leave a branch (src/reasonproxy/engine.py:1160-1162).
-# Every accepted key/value below MUST be re-probed against each provider before a
-# scored run and the outcome recorded in the manifest; providers disagree on both
-# the spelling and the ladder. No other sampling parameter is declared anywhere.
+# No other sampling parameter is declared anywhere.
+#
+# The ladder is per model, not universal, so every value below is that model's
+# own ceiling rather than a shared word. Read 2026-09-10 from the public
+# OpenRouter catalogue (`GET /api/v1/models`, field `reasoning`):
+#
+#   z-ai/glm-5.3            efforts [max, high, low]            default max
+#   z-ai/glm-5.3-flash      efforts [max, high, low]            default max
+#   deepseek/v4-pro-0813    efforts [max, high, low]            default high
+#   nvidia/nemotron-3-ultra efforts [high, medium]              default high
+#   inception/mercury-2.5   efforts [high, medium, low, none]   default medium
+#
+# So "high" is *below default* for both GLM models: declaring it would have
+# quietly reduced effort under what every earlier trial in this repo already
+# got from provider defaults. Nemotron has no `max` at all, and Mercury's
+# ceiling is `high`. There is no single maximum token; each backend carries its
+# own.
+#
+# Authority differs by route: Mercury is reached *through* OpenRouter, so its
+# ladder is authoritative here. GLM, DeepSeek and Nemotron are served by
+# Cloudflare Workers AI and OpenCode Zen, whose OpenAI-compatible surfaces do
+# not document `reasoning_effort`; for those the catalogue is model-family
+# evidence only and the accepted key/value MUST still be probed live before a
+# scored run, with the outcome recorded in the manifest.
 #
 # Keys come from the environment, never this file.
 
@@ -46,7 +67,7 @@ backends:
   ctl-hle-glm53:
     provider: cf
     model: "@cf/zai-org/glm-5.3"
-    params: {reasoning_effort: high}
+    params: {reasoning_effort: max}      # ceiling and provider default
 
   # ------------------------------------------------------------------ branches
   # Four families, role-differentiated. Cross-family diversity is what the MoA
@@ -55,19 +76,19 @@ backends:
   br-hle-glm53:
     provider: cf
     model: "@cf/zai-org/glm-5.3"
-    params: {reasoning_effort: high}
+    params: {reasoning_effort: max}      # ceiling and provider default
   br-hle-deepseek:
     provider: cf
     model: "@cf/deepseek-ai/deepseek-v4-pro-0813"
-    params: {reasoning_effort: high}
+    params: {reasoning_effort: max}      # ceiling; default is only high
   br-hle-ultra:
     provider: zen
     model: nemotron-3-ultra-free
-    params: {reasoning_effort: high}
+    params: {reasoning_effort: high}     # ceiling; this model has no `max`
   br-hle-flash:
     provider: cf
     model: "@cf/zai-org/glm-5.3-flash"
-    params: {reasoning_effort: high}
+    params: {reasoning_effort: max}      # ceiling and provider default
 
   # ------------------------------------------------------------------- reducer
   # Mercury: 8/8 reductions accepted with zero degradation in the swap pilot,
@@ -76,17 +97,20 @@ backends:
   red-hle-mercury:
     provider: openrouter
     model: inception/mercury-2.5
-    params: {reasoning_effort: high}
+    params: {reasoning_effort: high}     # ceiling; default is only medium
 
   # --------------------------------------------------------------------- judge
   # Grading must not vary with the arm under test, so the judge is one fixed
   # model reached through a passthrough alias, never a deliberating one. It is
-  # the only backend here with no reasoning budget declared: the official judge
-  # prompt is an extraction-and-match task, not a reasoning task, and a thinking
-  # judge would spend the 4k judge budget on scratchpad instead of the verdict.
+  # the only backend here told to spend *nothing* on reasoning: the official
+  # judge prompt is an extraction-and-match task, and a thinking judge would
+  # spend the 4k judge budget on scratchpad instead of the verdict. Mercury is
+  # the one model in this roster whose ladder includes `none`, which is why it
+  # holds this seat as well as the reducer seat.
   judge-hle-mercury:
     provider: openrouter
     model: inception/mercury-2.5
+    params: {reasoning_effort: none}
 
 virtual_models:
   ctl/hle-glm53:
