@@ -84,6 +84,20 @@ SUITES: dict[str, dict[str, Any]] = {
         # frozen replication subset was fixed; it is not in that subset.
         "reserved": ["cancel-async-tasks"],
     },
+    # Terminal-Bench 4.0 (66 tasks, harbor dataset terminal-bench@4.0.0). Same
+    # layout as 2.0, but the tasks declare 8-hour agent timeouts and up to 32 GiB
+    # / 16 CPUs, so most of the pool cannot run on a 16 GiB laptop at all: this
+    # suite is wired for cloud sandboxes (harbor --env modal/daytona) and for
+    # the memory-feasible subset locally.
+    "terminal-bench-4": {
+        "runner": "harbor",
+        "predeclaration": "runs/onboarding/terminal-bench-4-selection.json",
+        "clone": "~/.cache/reasonproxy/terminal-bench",
+        "tasks_subdir": "",
+        "template": None,
+        "job_root": "runs/tb4",
+        "reserved": None,
+    },
 }
 
 RUNNER_EXECUTABLE = {"pier": "pier", "harbor": "harbor"}
@@ -109,6 +123,7 @@ EXPERIMENT_SOURCE_GLOBS = (
     "experiments/deepswe/*.json",
     "experiments/deepswe/*.yaml",
     "scripts/benchmark.py",
+    "scripts/hle.py",
     "scripts/live_smoke.py",
     NATIVE_HARNESS_REL,
 )
