@@ -1,0 +1,98 @@
+# ReasonProxy -- Terminal-Bench 2.0 full pool roster (self-contained; new file).
+#
+# Same three arms and the same model set as configs/hle.yaml, so the two
+# benchmarks differ in population and harness, never in who answers or how hard
+# they are told to think:
+#   ctl/tb2-glm53   raw model, no machinery
+#   noop/tb2-glm53  directive, no deliberation behind it
+#   rp/tb2-glm53    directive plus the live four-branch ensemble
+#
+# Reasoning effort is each model's own ceiling, read 2026-09-10 from the public
+# OpenRouter catalogue; see configs/hle.yaml for the full ladder table and the
+# route-authority caveat (Mercury is authoritative, the Workers AI and Zen
+# surfaces are undocumented for this key and MUST be probed live). `max` is also
+# GLM 5.3's provider default, which is what the published 41.8% run used, and
+# what this repo's earlier zero-parameter trials already received.
+#
+# Deliberation budget stays at two calls per trial, matching the best-model
+# pilot exactly. TB2 caps are per task and mostly tight (47 of 88 at 900 s), and
+# the pilot measured each deliberation displacing roughly one acting turn, so
+# raising the budget here would change two things at once. Holding it fixed
+# keeps this run readable against the pilot it extends from 3 tasks to 88.
+#
+# Keys come from the environment, never this file.
+
+providers:
+  cf:
+    base_url: https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/v1
+    api_key_env: CLOUDFLARE_API_TOKEN
+    timeout_s: 900
+    max_attempts: 6
+  zen:
+    base_url: https://opencode.ai/zen/v1
+    api_key_env: OPENCODE_API_KEY
+    timeout_s: 900
+    max_attempts: 8
+  openrouter:
+    base_url: https://openrouter.ai/api/v1
+    api_key_env: OPENROUTER_API_KEY
+    timeout_s: 900
+    max_attempts: 8
+
+backends:
+  ctl-tb2-glm53:
+    provider: cf
+    model: "@cf/zai-org/glm-5.3"
+    params: {reasoning_effort: max}      # ceiling and provider default
+
+  br-tb2-glm53:
+    provider: cf
+    model: "@cf/zai-org/glm-5.3"
+    params: {reasoning_effort: max}
+  br-tb2-deepseek:
+    provider: cf
+    model: "@cf/deepseek-ai/deepseek-v4-pro-0813"
+    params: {reasoning_effort: max}      # ceiling; default is only high
+  br-tb2-ultra:
+    provider: zen
+    model: nemotron-3-ultra-free
+    params: {reasoning_effort: high}     # ceiling; this model has no `max`
+  br-tb2-flash:
+    provider: cf
+    model: "@cf/zai-org/glm-5.3-flash"
+    params: {reasoning_effort: max}
+
+  # Mercury: 8/8 reductions accepted with zero degradation in the swap pilot,
+  # against Super's 7 HTTP 500/503 flakes under load.
+  red-tb2-mercury:
+    provider: openrouter
+    model: inception/mercury-2.5
+    params: {reasoning_effort: high}     # ceiling; default is only medium
+
+virtual_models:
+  ctl/tb2-glm53:
+    controller: ctl-tb2-glm53
+    reason_mode: "off"
+
+  noop/tb2-glm53:
+    controller: ctl-tb2-glm53
+    reason_mode: noop
+    controller_prompt: deliberate-directed
+    max_reason_calls: 2
+
+  rp/tb2-glm53:
+    controller: ctl-tb2-glm53
+    reason_mode: live
+    controller_prompt: deliberate-directed
+    branches: [br-tb2-glm53, br-tb2-deepseek, br-tb2-ultra, br-tb2-flash]
+    branch_prompt: roles
+    branch_roles: [challenger, alternative, evidence, checker]
+    reducer: red-tb2-mercury
+    min_branches: 3
+    max_reason_calls: 2
+    branch_timeout_s: 600
+    persistence: assistant_tags
+
+# Separate trace: TB4 observations join trials against this file only.
+trace_path: runs/tb2-full.jsonl
+trace_texts: false
