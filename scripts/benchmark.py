@@ -1108,6 +1108,30 @@ def harbor_job_config(
 # --------------------------------------------------------------------------
 
 
+def _graded_reward(result_json: Path) -> float | None:
+    """The verifier's reward for one finished trial, or None if it never scored.
+
+    Read the same two places `analyze` reads - the embedded `verifier_result`
+    and the sibling `verifier/reward.json` - so resume and adjudication agree
+    on what "already graded" means. A trial that errored before the verifier
+    ran has no reward here and is therefore re-run.
+    """
+    try:
+        doc = json.loads(result_json.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+    rewards = (doc.get("verifier_result") or {}).get("rewards")
+    if rewards is None:
+        sidecar = result_json.parent / "verifier" / "reward.json"
+        try:
+            rewards = json.loads(sidecar.read_text())
+        except (OSError, json.JSONDecodeError):
+            return None
+    if isinstance(rewards, dict) and "reward" in rewards:
+        return _as_float(rewards["reward"])
+    return None
+
+
 def read_trial(trial_dir: Path) -> dict[str, Any]:
     result_path = trial_dir / "result.json"
     row: dict[str, Any] = {
@@ -1409,6 +1433,38 @@ def cmd_run(args: argparse.Namespace) -> int:
     ]
     if args.limit:
         requested = requested[: args.limit]
+
+    # Resume. A full-pool run is days long on this host, so any interruption -
+    # power loss, a Docker memory change, a killed shell - must cost the
+    # in-flight trial and nothing else. A trial counts as done when its job
+    # directory holds a `result.json` the verifier actually wrote; the stamp
+    # differs per invocation, so the match is on (condition, task, repeat).
+    # `--rerun` restores the old behaviour of executing every requested trial.
+    skipped: list[dict[str, Any]] = []
+    if not args.rerun:
+        root = Path(args.job_root or manifest["job_root_default"])
+        if not root.is_absolute():
+            root = REPO / root
+        suffix_for = "conformance" if args.conformance else None
+        keep: list[dict[str, Any]] = []
+        for item in requested:
+            suffix = suffix_for or f"r{item['repeat']}"
+            pattern = f"{suite}__{item['condition'].replace('/', '-')}__{item['task']}__{suffix}__*"
+            graded = any(
+                result.is_file() and _graded_reward(result) is not None
+                for job in root.glob(pattern)
+                for result in job.glob("*/result.json")
+            )
+            (skipped if graded else keep).append(item)
+        requested = keep
+        if skipped:
+            print(
+                f"  resuming: {len(skipped)} trial(s) already graded in {root}, "
+                f"{len(requested)} to run (pass --rerun to redo them)"
+            )
+        if not requested:
+            print("  nothing left to run; every requested trial is already graded")
+            return 0
     if not requested:
         print("error: filters selected no planned trial", file=sys.stderr)
         return 1
@@ -2643,6 +2699,11 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--limit", type=int, default=None, help="execute the first N planned trials in frozen order")
     run.add_argument("--conformance", action="store_true", help="run the reserved conformance task(s) instead")
     run.add_argument("--job-root", default=None)
+    run.add_argument(
+        "--rerun",
+        action="store_true",
+        help="execute every requested trial even if the job root already holds a graded result",
+    )
     run.add_argument("--proxy-url", default=None, help="endpoint as seen from inside the sandbox")
     run.add_argument("--preflight-url", default="http://127.0.0.1:8100/v1", help="endpoint as seen from the host")
     run.add_argument("--proxy-key-env", default="REASONPROXY_API_KEY")
